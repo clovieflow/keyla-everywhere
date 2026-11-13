@@ -3,7 +3,7 @@
 ## License
 
 Keyla Everywhere is distributed under the **GNU General Public License, version 3
-only**. The full text is in [`LICENSE`](LICENSE).
+only**. The full text is in [`LICENSE`](../LICENSE).
 
 ## Provenance
 

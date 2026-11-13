@@ -12,6 +12,16 @@ with the old identifiers must export/import their data into a fresh install.
 The backend is Rust. `src/` no longer exists; the dashboard is the only
 TypeScript source and is a pure HTTP client of the gateway.
 
+## Repository layout
+
+| Path | Purpose |
+|---|---|
+| `crates/` | 11 Rust crates: gateway, providers, console, DB, protocol, routing, security, observability, config, core, CLI |
+| `dashboard/` | React/Vite landing, console, and public share UI |
+| `migrations/` | SQL schema and forward migrations, embedded into the binary |
+| `deploy/` | Dockerfile and Compose deployment |
+| `docs/` | Agent guide, changelog, and notices |
+
 ## Build
 
 ```bash
@@ -32,6 +42,12 @@ KEYLA_ENCRYPTION_KEY='<base64 32-byte key>' \
 `down`, `restart`, `logs`, `status`, and `doctor` manage a detached instance.
 Without `DATABASE_URL` the gateway boots an embedded PostgreSQL under
 `KEYLA_DATA_DIR`.
+
+Docker deployment lives in `deploy/`:
+
+```bash
+docker compose -f deploy/docker-compose.yml up --build
+```
 
 ## Development
 
@@ -58,4 +74,4 @@ bundled with the source.
 
 ## License
 
-GPL-3.0-only. See `LICENSE` and `NOTICE.md`.
+GPL-3.0-only. See `LICENSE` and [`docs/NOTICE.md`](docs/NOTICE.md).

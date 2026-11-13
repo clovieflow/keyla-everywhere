@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile
     image: keyla-everywhere:local
     ports:
       - "127.0.0.1:${PORT:-12800}:12800"
@@ -12,7 +12,7 @@ services:
     # Redis); .env overrides both — set KEYLA_DB_MODE=lite for the
     # embedded database, or clear REDIS_URL for the in-memory backend.
     env_file:
-      - "${KEYLA_ENV_FILE:-.env}"
+      - "${KEYLA_ENV_FILE:-../.env}"
     environment:
       PORT: "12800"
       KEYLA_BIND_HOST: "0.0.0.0"

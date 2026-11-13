@@ -4,7 +4,7 @@
  *
  * ── Why the commands are generated, not written ────────────────────────────
  * The endpoint list is derived from the gateway's own route registration as
- * documented in `AGENTS.md`/the protocol docs, and the model placeholder is
+ * documented in `docs/AGENTS.md`/the protocol docs, and the model placeholder is
  * filled from the live catalog when one exists. A hardcoded "40 providers"
  * banner or a sample that names a model this install cannot route would be
  * worse than no sample: the operator would paste it, get a 404, and lose trust
