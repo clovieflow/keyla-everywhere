@@ -15,7 +15,7 @@ Usage:
   keyla restart            Restart the detached gateway
   keyla logs [--lines N]   Tail the detached gateway log
   keyla setup              Create or repair .env with an encryption key
-  keyla update             Pull the latest source when run inside a checkout
+  keyla update [--no-restart]  Pull, build, install, and restart in a checkout
   keyla status [--url URL] Check a running gateway's readiness
   keyla doctor             Check configuration, database, and migrations
   keyla version            Print version
@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
         }
         "logs" => tail_logs(&args[1..]),
         "setup" => setup_env(),
-        "update" => update_source(),
+        "update" => update_source(&args[1..]),
         "status" => status(args.get(1).map(String::as_str)).await,
         "doctor" => doctor().await,
         "version" | "--version" | "-V" => {
@@ -303,17 +303,92 @@ fn setup_env() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update_source() -> anyhow::Result<()> {
-    if !std::path::Path::new(".git").exists() {
-        println!("this is not a source checkout; replace the binary with the newest release");
+fn run_command(program: &str, args: &[&str]) -> anyhow::Result<()> {
+    let status = std::process::Command::new(program)
+        .args(args)
+        .status()
+        .map_err(|error| anyhow::anyhow!("cannot run {program}: {error}"))?;
+    if !status.success() {
+        anyhow::bail!("{program} {} failed", args.join(" "));
+    }
+    Ok(())
+}
+
+fn install_release_binary() -> anyhow::Result<()> {
+    let built = std::path::PathBuf::from("target/release/keyla");
+    if !built.is_file() {
+        anyhow::bail!("release binary was not produced at {}", built.display());
+    }
+    let current = std::env::current_exe()?;
+    let same = match (built.canonicalize(), current.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    };
+    if same {
+        println!("installed binary: {}", current.display());
         return Ok(());
     }
-    let status = std::process::Command::new("git")
-        .args(["pull", "--ff-only"])
-        .status()?;
-    if !status.success() {
-        anyhow::bail!("git pull failed");
+    let staged = current.with_extension("update");
+    std::fs::copy(&built, &staged).map_err(|error| {
+        anyhow::anyhow!(
+            "cannot replace {} (run with sufficient permissions, or install {} manually): {error}",
+            current.display(),
+            built.display()
+        )
+    })?;
+    std::fs::rename(&staged, &current).map_err(|error| {
+        anyhow::anyhow!(
+            "cannot install {} over {}: {error}",
+            built.display(),
+            current.display()
+        )
+    })?;
+    println!("installed binary: {}", current.display());
+    Ok(())
+}
+
+fn update_source(args: &[String]) -> anyhow::Result<()> {
+    let restart = !args.iter().any(|arg| arg == "--no-restart");
+    for arg in args {
+        if arg != "--no-restart" {
+            anyhow::bail!("unknown update option: {arg}");
+        }
     }
-    println!("source updated; rebuild with `cargo build --release` and restart the gateway");
+    if !std::path::Path::new(".git").exists() {
+        println!("this is not a source checkout; install the newest release binary");
+        return Ok(());
+    }
+
+    let dirty = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .output()
+        .map_err(|error| anyhow::anyhow!("cannot run git: {error}"))?;
+    if !dirty.status.success() {
+        anyhow::bail!("git status failed");
+    }
+    if !dirty.stdout.is_empty() {
+        anyhow::bail!("working tree is dirty; commit or stash changes before `keyla update`");
+    }
+
+    run_command("git", &["pull", "--ff-only"])?;
+    if std::path::Path::new("dashboard").is_dir() {
+        run_command("bun", &["install"])?;
+        run_command("bun", &["run", "dashboard:build"])?;
+    }
+    run_command(
+        "cargo",
+        &["build", "--release", "-p", "keyla-cli", "--bin", "keyla"],
+    )?;
+    install_release_binary()?;
+
+    if restart && running_pid().is_some() {
+        stop_detached()?;
+        start_detached()?;
+        println!("update complete; gateway restarted");
+    } else if restart {
+        println!("update complete; gateway is not running, start it with `keyla start`");
+    } else {
+        println!("update complete; restart skipped (--no-restart)");
+    }
     Ok(())
 }
