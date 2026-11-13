@@ -306,6 +306,30 @@ To roll back, restore the previous binary and restart. Database migrations are
 forward-only; use the tested backup/restore path when a schema rollback is
 required.
 
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `no PostgreSQL configuration found; serving the shell without /v1` | Set `DATABASE_URL` (or `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`) and restart |
+| `keyla doctor` says `migrations: pending` | The database user needs schema privileges; start the gateway and inspect `keyla logs` |
+| Provider credentials fail to decrypt | The current `KEYLA_ENCRYPTION_KEY` differs from the key that encrypted them; restore the old key or re-enter the credentials |
+| Console login loops or returns 401/403 | Check `KEYLA_PUBLIC_ORIGIN`, the operator password, session cookies, and the key/user scopes |
+| `keyla status` is unreachable | Check `PORT`, `KEYLA_BIND_HOST`, firewall rules, and whether the detached process is running |
+| Port already in use | Change `PORT` and restart; do not run two detached instances against one data dir |
+| `keyla update` says working tree is dirty | Commit or stash local edits before updating |
+| `keyla update` cannot replace the binary | The installed path is not writable; run with correct permissions or copy `target/release/keyla` manually |
+| Dashboard is blank or old after an update | Rebuild with `bun run dashboard:build`; confirm `DASHBOARD_DIST` or the embedded assets match the binary |
+| Provider requests fail while the console is up | Check **Kesehatan**, **Kuota**, **Log**, and the provider account's scope/capability |
+
+Useful commands:
+
+```bash
+keyla doctor
+keyla status
+keyla logs --lines 200
+curl -fsS http://127.0.0.1:12800/health/ready
+```
+
 ## Development
 
 ```bash

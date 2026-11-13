@@ -25,6 +25,8 @@ as a fix. Keep the smallest complete change that proves its acceptance criteria.
 - `crates/keyla-cli` — `keyla` binary and lifecycle commands.
 - `dashboard/` — browser console; it must not import deleted backend sources.
 - `migrations/` — SQL, embedded into the binary at build time.
+- `deploy/` — Dockerfile and Compose deployment.
+- `docs/` — agent guide, changelog, and notices.
 
 ## Working agreement
 
