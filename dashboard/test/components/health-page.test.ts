@@ -37,7 +37,8 @@ describe("Health page realtime", () => {
   test("the page asks for the fast cadence", () => {
     // The default stays slow for the shell's status dot, which shares the
     // query; the page opts in because it answers "healthy right now".
-    expect(healthSource).toContain("useSystemHealth(5_000)");
+    expect(healthSource).toContain("useSystemHealth(1_000)");
+    expect(healthSource).toContain("useReadinessProbe(1_000)");
   });
 
   test("the health hook's interval is a parameter, defaulting to the old cadence", () => {
@@ -51,7 +52,15 @@ describe("Health page realtime", () => {
     // Both are rendered side by side from the same instant. A probe that lags
     // the figures beside it would show two answers to one question.
     const hook = readinessHooks.slice(readinessHooks.indexOf("export function useReadinessProbe"));
-    expect(hook).toContain("refetchInterval: 5_000");
+    expect(hook).toContain("intervalMs = 5_000");
+    expect(hook).toContain("refetchInterval: intervalMs");
+  });
+
+  test("advances uptime locally between snapshots", () => {
+    // A sampled server clock should not jump once per poll interval.
+    expect(healthSource).toContain("useLiveUptime");
+    expect(healthSource).toContain("formatLiveUptime");
+    expect(healthSource).toContain("setNow(Date.now())");
   });
 
   test("states when the figures were last read", () => {

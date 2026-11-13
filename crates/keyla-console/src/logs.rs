@@ -1,5 +1,6 @@
-//! In-memory console log ring: captures tracing events for the Log page and
-//! serves them as a snapshot plus a live SSE stream.
+//! In-memory console log ring: captures tracing events and data-plane request
+//! lifecycle lines for the Log page, then serves them as a snapshot plus a
+//! live SSE stream.
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -44,15 +45,18 @@ fn ring() -> &'static Ring {
     })
 }
 
-fn push(level: &str, message: String) {
+/// Appends one pre-built event to the ring. Request logging supplies
+/// structured fields (`event`, `requestId`, route, status, usage), so this is
+/// the shared path for both those lines and the tracing layer's plain lines.
+pub fn record_line(mut line: Value) {
     let ring = ring();
     let sequence = ring.sequence.fetch_add(1, Ordering::Relaxed) + 1;
-    let line = json!({
-        "seq": sequence,
-        "ts": Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-        "level": level,
-        "msg": message,
-    });
+    if let Some(object) = line.as_object_mut() {
+        object.entry("seq").or_insert_with(|| json!(sequence));
+        object
+            .entry("ts")
+            .or_insert_with(|| json!(Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)));
+    }
     if let Ok(mut lines) = ring.lines.lock() {
         if lines.len() >= CAPACITY {
             lines.pop_front();
@@ -62,7 +66,16 @@ fn push(level: &str, message: String) {
     let _ = ring.sender.send(Change::Line(line));
 }
 
-fn snapshot() -> Vec<Value> {
+fn push(level: &str, message: String) {
+    record_line(json!({
+        "level": level,
+        "msg": message,
+    }));
+}
+
+/// Current ring contents, oldest first. The console snapshot endpoint and
+/// request-log tests read the same buffer.
+pub fn snapshot() -> Vec<Value> {
     ring()
         .lines
         .lock()

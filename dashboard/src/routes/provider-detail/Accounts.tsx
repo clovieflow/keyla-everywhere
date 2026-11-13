@@ -919,9 +919,15 @@ export function AddAccountModal({
           onSuccess: () => {
             toast.success(
               "Account connected",
-              `New ${
-                entry.kind === "oauth" ? "OAuth" : entry.kind === "jwt" ? "Static JWT" : "API key"
-              } account registered successfully`,
+              providerId === "zcode" && entry.kind === "jwt"
+                ? "Z.AI JWT exchanged for a durable API key account"
+                : `New ${
+                    entry.kind === "oauth"
+                      ? "OAuth"
+                      : entry.kind === "jwt"
+                        ? "Static JWT"
+                        : "API key"
+                  } account registered successfully`,
             );
             onClose();
           },
@@ -967,7 +973,7 @@ export function AddAccountModal({
   };
 
   return (
-    <Dialog open={true} onClose={onClose} title="Add Account (API key / JSON)" width={560}>
+    <Dialog open={true} onClose={onClose} title="Add Account (API key / JWT / JSON)" width={560}>
       <div
         style={{
           display: "flex",
@@ -1023,8 +1029,14 @@ export function AddAccountModal({
             ) : null}
               {singleEntry && detectedKind === "jwt" ? (
                 <p style={{ fontSize: "10.5px", color: "var(--text-tertiary)" }}>
-                  Static JWT · no refresh token
-                  {detectedExpiry ? ` · expires ${new Date(detectedExpiry).toLocaleString()}` : " · no expiry claim"}
+                  {providerId === "zcode"
+                    ? "Z.AI JWT · exchanged for a durable API key"
+                    : "Static JWT · no refresh token"}
+                  {providerId === "zcode"
+                    ? ""
+                    : detectedExpiry
+                      ? ` · expires ${new Date(detectedExpiry).toLocaleString()}`
+                      : " · no expiry claim"}
                 </p>
               ) : null}
           </div>

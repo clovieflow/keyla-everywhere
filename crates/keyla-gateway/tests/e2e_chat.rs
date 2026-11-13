@@ -39,6 +39,7 @@ struct Seen {
     authorization: Option<String>,
     model: String,
     user_content: String,
+    trusted_instructions: String,
 }
 
 #[derive(Clone)]
@@ -83,18 +84,30 @@ async fn mock_handler(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let user_content = body
-        .get("messages")
-        .and_then(Value::as_array)
+    let messages = body.get("messages").and_then(Value::as_array);
+    let user_content = messages
         .and_then(|messages| messages.last())
         .and_then(|message| message.get("content"))
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
+    let trusted_instructions = messages
+        .into_iter()
+        .flatten()
+        .filter(|message| {
+            matches!(
+                message.get("role").and_then(Value::as_str),
+                Some("system" | "developer")
+            )
+        })
+        .filter_map(|message| message.get("content").and_then(Value::as_str))
+        .collect::<Vec<_>>()
+        .join("\n");
     state.seen.lock().unwrap().push(Seen {
         authorization: authorization.clone(),
         model: model.clone(),
         user_content,
+        trusted_instructions,
     });
     if authorization.as_deref() == Some("Bearer sk-bad") {
         return Response::builder()
@@ -201,6 +214,7 @@ async fn mock_messages(
             }),
         model: model.clone(),
         user_content: String::new(),
+        trusted_instructions: String::new(),
     });
     if let Some(response) = check_bad_auth(&headers) {
         return response;
@@ -251,6 +265,7 @@ async fn mock_responses(
             .map(str::to_owned),
         model: model.clone(),
         user_content: String::new(),
+        trusted_instructions: String::new(),
     });
     if let Some(response) = check_bad_auth(&headers) {
         return response;
@@ -456,6 +471,14 @@ async fn chat_completions_end_to_end() {
     .execute(&pool)
     .await
     .unwrap();
+    sqlx::query(
+        "INSERT INTO console_settings (tenant_id, preferences)
+         VALUES ($1::uuid, '{\"promptInjection\":{\"enabled\":true,\"prompt\":\"Injected operator policy.\",\"targetModels\":[\"mock/gpt-test\"],\"placement\":\"developer\"}}'::jsonb)",
+    )
+    .bind(TENANT)
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let runtime = Arc::new(GatewayRuntime::new(pool.clone(), None).unwrap());
     let state = AppState::new(
@@ -492,6 +515,13 @@ async fn chat_completions_end_to_end() {
     assert_eq!(seen[1].authorization.as_deref(), Some("Bearer sk-good"));
     assert_eq!(seen[1].model, "gpt-test");
     assert_eq!(seen[1].user_content, "hi");
+    assert!(
+        seen[1]
+            .trusted_instructions
+            .contains("Injected operator policy."),
+        "prompt injection did not reach the upstream chat body: {}",
+        seen[1].trusted_instructions
+    );
 
     // 2. Streaming: the same failover, then canonical SSE re-encoded for the
     // client with a single terminal frame and [DONE].

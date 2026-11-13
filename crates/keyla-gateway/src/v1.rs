@@ -1631,7 +1631,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             ));
         }
     };
-    let canonical = match surface.parse(&body) {
+    let mut canonical = match surface.parse(&body) {
         Ok(request) => request,
         Err(error) => return gateway_error_response(&error),
     };
@@ -1679,6 +1679,9 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             return gateway_error_response(&error);
         }
     };
+    let prompt_injection = runtime.prompt_injection.config(&auth.tenant_id).await;
+    prompt_injection.apply(&mut canonical, &plan.resolved_model, &plan.provider_id);
+
     let policy = ModelAccessPolicy {
         model_access_mode: Some(auth.snapshot.model_access_mode),
         model_list: auth.snapshot.model_list.clone(),

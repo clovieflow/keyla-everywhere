@@ -16,7 +16,7 @@
  * reads `process.env`, and the readiness probe's `reason` is the gateway's own
  * fixed vocabulary ("dependency not ready"), never a connection string.
  */
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -81,12 +81,39 @@ const REMEDIATION_KEY: Readonly<Record<"healthy" | "degraded" | "unhealthy", Mes
   unhealthy: "health.remediation.unhealthy",
 };
 
+/** Sub-second resolution for the live process clock; longer spans stay compact. */
+function formatLiveUptime(seconds: number | undefined): string {
+  if (seconds === undefined || !Number.isFinite(seconds)) return "—";
+  const value = Math.max(0, seconds);
+  if (value >= 3_600) return formatUptime(value);
+  const minutes = Math.floor(value / 60);
+  const remainder = value % 60;
+  const secs = remainder.toFixed(2);
+  return minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+}
+
+/**
+ * The server snapshot is sampled, but uptime is a clock. Advance it locally
+ * between snapshots so the figure never sits still for a whole poll interval,
+ * then re-anchor when a fresh snapshot arrives.
+ */
+function useLiveUptime(serverSeconds: number | undefined, updatedAt: number): number | undefined {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (serverSeconds === undefined) return undefined;
+  return serverSeconds + Math.max(0, now - updatedAt) / 1000;
+}
+
 export default function Health(): ReactNode {
   const t = useT();
-  const healthQuery = useSystemHealth(5_000);
-  const probeQuery = useReadinessProbe();
+  const healthQuery = useSystemHealth(1_000);
+  const probeQuery = useReadinessProbe(1_000);
   const inFlight = useInFlight();
   const health = healthQuery.data;
+  const liveUptime = useLiveUptime(health?.uptime_seconds, healthQuery.dataUpdatedAt);
 
   // The single worst signal decides the headline: a healthy process with a
   // failing readiness probe is not "healthy", and saying so would be the exact
@@ -126,7 +153,7 @@ export default function Health(): ReactNode {
           },
           {
             label: "Uptime",
-            value: health ? formatUptime(health.uptime_seconds) : "—",
+            value: formatLiveUptime(liveUptime),
             meta: "Since process start",
           },
           {
@@ -276,7 +303,7 @@ export default function Health(): ReactNode {
             <Card>
               <CardHeader title={t("health.process")} icon={<Cpu size={15} />} />
               <CardBody>
-                <Fact label={t("health.uptime")} value={formatUptime(health.uptime_seconds)} />
+                <Fact label={t("health.uptime")} value={formatLiveUptime(liveUptime)} />
                 <Fact label={t("health.pid")} value={health.pid} />
                 <Fact label={t("health.platform")} value={health.platform} />
                 <Fact label={t("health.cpuCores")} value={health.cpu_cores} />

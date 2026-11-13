@@ -589,9 +589,9 @@ export function useUpdateGlobalProvider() {
 /** Synchronizes one provider's model catalog when the session has platform admin scope. */
 export function useSyncProviderModels(options: { readonly silent?: boolean } = {}) {
   const queryClient = useQueryClient();
-  return useMutation<{ synced: number }, ApiErrorShape, string>({
+  return useMutation<{ synced: number; enriched?: number }, ApiErrorShape, string>({
     mutationFn: (providerId) =>
-      consoleRequest<{ synced: number }>(
+      consoleRequest<{ synced: number; enriched?: number }>(
         `/providers/${encodeURIComponent(providerId)}/models/sync`,
         { method: "POST", body: "{}" },
       ),
@@ -601,11 +601,18 @@ export function useSyncProviderModels(options: { readonly silent?: boolean } = {
     onSuccess: async (result, providerId) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.providers.models(providerId) });
       if (!options.silent) {
+        const enriched = result.enriched ?? 0;
         toast.success(
           "Models fetched",
           result.synced > 0
-            ? `${result.synced} new model${result.synced === 1 ? "" : "s"} added`
-            : "No new models found",
+            ? `${result.synced} new model${result.synced === 1 ? "" : "s"} added${
+                enriched > 0
+                  ? `, ${enriched} limit${enriched === 1 ? "" : "s"} updated`
+                  : ""
+              }`
+            : enriched > 0
+              ? `${enriched} model limit${enriched === 1 ? "" : "s"} updated`
+              : "No new models found",
         );
       }
     },

@@ -13,6 +13,7 @@ import {
 } from "../../hooks/providers";
 import { queryKeys } from "../../data/query-keys";
 import { toast } from "../../shared/toast";
+import { detectCredentialKind } from "../../shared/credential-extract";
 import { useTrackedTimeout } from "../../hooks/use-timeout";
 
 /**
@@ -57,12 +58,14 @@ export function OAuthBrowserDialog({
   state,
   popup,
   onClose,
+  onUseApiKey,
 }: {
   readonly providerId: string;
   readonly authorizeUrl: string;
   readonly state: string;
   readonly popup: Window;
   readonly onClose: (completed: boolean) => void;
+  readonly onUseApiKey?: () => void;
 }): ReactNode {
   const [copied, setCopied] = useState(false);
   const [callbackValue, setCallbackValue] = useState("");
@@ -135,6 +138,18 @@ export function OAuthBrowserDialog({
   };
 
   const handleConnect = () => {
+    const trimmed = callbackValue.trim();
+    if (
+      trimmed.length > 0 &&
+      detectCredentialKind(trimmed) === "jwt" &&
+      providerId !== "zcode"
+    ) {
+      toast.error(
+        "JWT detected — not an OAuth code",
+        "This is a static token, not an authorization code. Add it as an API key/JWT account instead.",
+      );
+      return;
+    }
     const parsed = extractOAuthCode(callbackValue);
     if ("error" in parsed) {
       toast.error("OAuth callback failed", parsed.error);
@@ -165,6 +180,20 @@ export function OAuthBrowserDialog({
       size="sm"
       footer={
         <>
+          {providerId === "zcode" && onUseApiKey ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                popup.close();
+                onUseApiKey();
+              }}
+              disabled={complete.isPending}
+              title="Use a Z.AI API key instead of the zcode:// callback"
+            >
+              Use API key instead
+            </Button>
+          ) : null}
           <Button variant="secondary" size="sm" onClick={cancel} disabled={complete.isPending}>
             Cancel
           </Button>
@@ -197,6 +226,16 @@ export function OAuthBrowserDialog({
           />
           <span className="oauth-status-text">Waiting for popup authorization…</span>
         </div>
+
+        {providerId === "zcode" ? (
+          <p className="oauth-hint">
+            Z.AI only registers the <code>zcode://zai-auth/callback</code> redirect. There is no
+            localhost callback. If no ZCode app handles the scheme, copy the address-bar URL or
+            authorization code into the manual field below. An API key from the Z.AI API-key page
+            is also accepted as a fallback. A chat.z.ai JWT pasted into the manual field is
+            exchanged for a durable Z.AI API key.
+          </p>
+        ) : null}
 
         <div className="oauth-step">
           <div className="oauth-step-title">Step 1: Open this URL in your browser</div>
@@ -242,7 +281,11 @@ export function OAuthBrowserDialog({
               className="oauth-textarea"
               value={callbackValue}
               onChange={(event) => setCallbackValue(event.target.value)}
-              placeholder="http://127.0.0.1:59653/callback?code=…&state=…  (or just the code)"
+              placeholder={
+                providerId === "zcode"
+                  ? "zcode://zai-auth/callback?code=…&state=…  (or just the code, or a chat.z.ai JWT)"
+                  : "http://127.0.0.1:59653/callback?code=…&state=…  (or just the code)"
+              }
               rows={2}
               spellCheck={false}
               style={{ flex: 1 }}

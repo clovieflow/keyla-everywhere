@@ -37,6 +37,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "fs", "sync"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 http-body-util = "0.1"

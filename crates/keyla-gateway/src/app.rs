@@ -18,6 +18,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use keyla_observability::METRICS;
 use serde_json::json;
+use std::time::Instant;
 use tokio::sync::watch;
 
 use crate::static_assets::{
@@ -324,7 +325,71 @@ pub fn build_app(state: AppState) -> Router {
             .merge(keyla_console::console_router(pool.clone()))
             .merge(keyla_console::public_share::public_share_router(pool));
     }
-    app
+    app.layer(axum::middleware::from_fn(log_gateway_requests))
+}
+
+/// Logs every data-plane HTTP request into the console ring. It sits outside
+/// the proxy so authentication failures and malformed bodies are visible too;
+/// those are precisely the failures an operator opens the log page to find.
+async fn log_gateway_requests(request: Request, next: Next) -> Response {
+    let path = request.uri().path().to_owned();
+    if !path.starts_with("/v1/") {
+        return next.run(request).await;
+    }
+    let method = request.method().as_str().to_owned();
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let user_agent = request
+        .headers()
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let client_ip = request
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(',').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            request
+                .extensions()
+                .get::<ConnectInfo<SocketAddr>>()
+                .map(|ConnectInfo(address)| address.ip().to_string())
+        });
+    keyla_console::logs::record_line(json!({
+        "level": "info",
+        "event": "request_start",
+        "requestId": request_id,
+        "method": method,
+        "endpoint": path,
+        "clientIp": client_ip,
+        "userAgent": user_agent,
+        "msg": format!("{method} {path}"),
+    }));
+    let started = Instant::now();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    let level = if status >= 500 {
+        "error"
+    } else if status >= 400 {
+        "warn"
+    } else {
+        "info"
+    };
+    keyla_console::logs::record_line(json!({
+        "level": level,
+        "event": "request_complete",
+        "requestId": request_id,
+        "method": method,
+        "endpoint": path,
+        "clientIp": client_ip,
+        "userAgent": user_agent,
+        "status": status,
+        "durationMs": started.elapsed().as_millis().min(u32::MAX as u128) as u64,
+        "msg": format!("{method} {path} {status}"),
+    }));
+    response
 }
 
 /// Applies the per-IP window/ban only to `/v1/*`; console auth has its own

@@ -183,7 +183,7 @@ export function RoutingStrategyCard({
                   </Inline>
                 </label>
                 <div style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
-                  Shared provider ceiling
+                  Per account, shared across models
                 </div>
                 <Inline gap="10px" style={{ marginTop: "18px" }}>
                   <div style={{ position: "relative", flex: 1, minWidth: 0 }}>

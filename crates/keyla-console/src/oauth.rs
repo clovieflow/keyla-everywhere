@@ -81,7 +81,7 @@ fn http_client() -> Result<reqwest::Client, Response> {
         })
 }
 
-fn jwt_payload(token: &str) -> Option<Value> {
+pub(crate) fn jwt_payload(token: &str) -> Option<Value> {
     let payload = token.split('.').nth(1)?;
     let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload)
@@ -2259,6 +2259,24 @@ async fn exchange_zcode(
     redirect_uri: &str,
     state: &str,
 ) -> Result<Exchange, String> {
+    // The zcode:// callback is often unreachable without the desktop app. A
+    // chat.z.ai session JWT is accepted by the business login endpoint, which
+    // mints the durable coding key; the JWT itself is not a coding credential.
+    if let Some(claims) = jwt_payload(code).filter(Value::is_object) {
+        let durable = mint_zcode_key(client, code).await?;
+        let label = claims
+            .get("email")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        return Ok(Exchange {
+            access: durable.clone(),
+            refresh: durable,
+            expires_in: 365 * 24 * 60 * 60,
+            label,
+            auth_state: None,
+            client_secret: None,
+        });
+    }
     let response = client
         .post("https://zcode.z.ai/api/v1/oauth/token")
         .json(&json!({
@@ -2304,7 +2322,10 @@ async fn exchange_zcode(
     })
 }
 
-async fn mint_zcode_key(client: &reqwest::Client, oauth_access: &str) -> Result<String, String> {
+pub(crate) async fn mint_zcode_key(
+    client: &reqwest::Client,
+    oauth_access: &str,
+) -> Result<String, String> {
     let login: Value = client
         .post("https://api.z.ai/api/auth/z/login")
         .json(&json!({"token": oauth_access}))

@@ -101,7 +101,7 @@ export default function ConsoleLogPage(): ReactNode {
         display: "flex",
         flexDirection: "column",
         gap: "12px",
-        height: "calc(100dvh - 305px)",
+        height: "100%",
         minHeight: "480px",
       }}
     >

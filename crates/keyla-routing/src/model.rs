@@ -352,10 +352,12 @@ pub trait AdmissionController: Send + Sync {
 }
 
 fn admission_key(candidate: &RouteCandidate) -> String {
-    let base = format!("{}:{}", candidate.provider_id, candidate.model_id);
+    // Provider concurrency limits are per credential/account, not per model:
+    // one API key usually has a single ceiling shared by every model it can
+    // call. The model belongs to the candidate, but not to this bucket.
     match &candidate.provider_account_id {
-        Some(account) => format!("{base}:{account}"),
-        None => base,
+        Some(account) => format!("{}:{}", candidate.provider_id, account),
+        None => candidate.provider_id.clone(),
     }
 }
 
@@ -752,6 +754,22 @@ mod tests {
         // A different account has its own bucket.
         let second = candidate("b", None);
         assert!(controller.admit(&second).await.admitted);
+    }
+
+    #[tokio::test]
+    async fn admission_account_ceiling_is_shared_across_models() {
+        let controller = InMemoryAdmissionController::new();
+        let mut first = candidate("account", None);
+        first.max_inflight = Some(1);
+        first.model_id = "model-a".into();
+        assert!(controller.admit(&first).await.admitted);
+
+        let mut other_model = first.clone();
+        other_model.model_id = "model-b".into();
+        assert!(
+            !controller.admit(&other_model).await.admitted,
+            "one API key must not get a second slot by switching models"
+        );
     }
 
     #[test]

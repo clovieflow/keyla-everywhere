@@ -203,6 +203,9 @@ pub static BUNDLED_PROVIDERS: &[ProviderMetadata] = &[
     },
     ProviderMetadata {
         credential_url: Some("https://chat.z.ai"),
+        credential_hint: Some(
+            "Z.AI browser login redirects only to zcode://zai-auth/callback. If no ZCode app opens, copy the callback URL or code into the manual field, or add an API key from https://z.ai/manage-apikey/apikey-list. A chat.z.ai JWT can be pasted into the manual field and is exchanged for a durable API key.",
+        ),
         ..provider(
             "zcode",
             "Z.AI Coding Plan",

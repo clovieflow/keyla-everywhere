@@ -1185,6 +1185,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn two_accounts_with_two_slots_each_admit_four_requests() {
+        let mut first = candidate("openai", "gpt-test", "a", None);
+        first.max_inflight = Some(2);
+        let mut second = candidate("openai", "gpt-test", "b", None);
+        second.max_inflight = Some(2);
+        let snapshot = snapshot_of(vec![first, second]);
+        let engine = engine();
+        let plan = engine.plan(&snapshot, PlanInput::new("gpt-test")).unwrap();
+
+        let mut reservations = Vec::new();
+        for _ in 0..4 {
+            reservations.push(engine.reserve(&plan).await.expect("slot available"));
+        }
+        let mut by_account: HashMap<String, usize> = HashMap::new();
+        for reservation in &reservations {
+            *by_account
+                .entry(
+                    reservation
+                        .candidate
+                        .provider_account_id
+                        .clone()
+                        .unwrap_or_default(),
+                )
+                .or_default() += 1;
+        }
+        assert_eq!(by_account.get("a"), Some(&2));
+        assert_eq!(by_account.get("b"), Some(&2));
+        assert!(
+            engine.reserve(&plan).await.is_err(),
+            "the fifth request must not exceed either account ceiling"
+        );
+        for reservation in reservations {
+            engine.release(&reservation).await;
+        }
+    }
+
+    #[tokio::test]
     async fn reserve_admits_first_available_candidate_then_releases() {
         let mut first = candidate("openai", "gpt-test", "a", None);
         first.max_inflight = Some(0);

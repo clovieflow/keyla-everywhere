@@ -3,6 +3,7 @@
 pub mod app;
 pub mod ip_abuse;
 pub mod model_abuse;
+pub mod prompt_injection;
 pub mod runtime;
 pub mod server;
 pub mod static_assets;

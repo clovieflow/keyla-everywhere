@@ -20,6 +20,9 @@ pub struct GatewayRuntime {
     pub key_inflight: Arc<Mutex<HashMap<String, i64>>>,
     /// Redis-backed admission when `REDIS_URL` is configured.
     pub redis_admission: Option<keyla_security::redis_admission::RedisAdmission>,
+    /// Tenant Prompt Injection policy, read on the request path with a short
+    /// in-process cache.
+    pub prompt_injection: Arc<crate::prompt_injection::PromptInjectionCache>,
 }
 
 impl GatewayRuntime {
@@ -39,6 +42,9 @@ impl GatewayRuntime {
                     Map::new(),
                 )
             })?;
+        let prompt_injection = Arc::new(crate::prompt_injection::PromptInjectionCache::new(
+            pool.clone(),
+        ));
         Ok(Self {
             snapshots: keyla_db::snapshot::SnapshotService::new(
                 pool.clone(),
@@ -52,6 +58,7 @@ impl GatewayRuntime {
             client,
             key_inflight: Arc::new(Mutex::new(HashMap::new())),
             redis_admission,
+            prompt_injection,
         })
     }
 }

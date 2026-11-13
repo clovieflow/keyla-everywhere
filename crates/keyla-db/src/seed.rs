@@ -5,6 +5,7 @@
 //! every bundled model/route survives the port without hand transcription.
 
 use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
 use keyla_providers::BUNDLED_PROVIDERS;
 use serde_json::Value;
@@ -205,6 +206,39 @@ pub async fn retire_unbundled_providers(pool: &PgPool) -> DbResult<u64> {
     Ok(result.rows_affected())
 }
 
+type ModelLimits = (Option<i64>, Option<i64>);
+
+/// Model id to its single unambiguous `(context, output)` pair. `None` means
+/// bundled providers disagree, so a custom provider must not inherit either
+/// value.
+static BUNDLED_MODEL_LIMITS: LazyLock<BTreeMap<String, Option<ModelLimits>>> =
+    LazyLock::new(|| {
+        let mut index: BTreeMap<String, Option<ModelLimits>> = BTreeMap::new();
+        for row in parse_catalog().into_values().flatten() {
+            let limits = (row.context_limit, row.output_limit);
+            if limits.0.is_none() && limits.1.is_none() {
+                continue;
+            }
+            index
+                .entry(row.model_id)
+                .and_modify(|existing| {
+                    if *existing != Some(limits) {
+                        *existing = None;
+                    }
+                })
+                .or_insert(Some(limits));
+        }
+        index
+    });
+
+/// Limits for a model id that appears in the embedded catalog with one
+/// unambiguous `(context, output)` pair. Custom providers often expose only
+/// model ids from `GET /models`; this fills limits for the catalog-known ids
+/// without guessing when provider entries disagree.
+pub fn bundled_model_limits(model_id: &str) -> Option<ModelLimits> {
+    BUNDLED_MODEL_LIMITS.get(model_id).copied().flatten()
+}
+
 /// Number of model rows the embedded catalog carries, by provider.
 pub fn bundled_model_counts() -> BTreeMap<String, usize> {
     parse_catalog()
@@ -225,6 +259,18 @@ mod tests {
         assert_eq!(counts.get("claude"), Some(&15));
         assert_eq!(counts.get("inferhub"), Some(&57));
         assert_eq!(counts.get("exa"), Some(&1));
+    }
+
+    #[test]
+    fn catalog_limits_are_returned_only_when_unambiguous() {
+        assert_eq!(
+            bundled_model_limits("gpt-4o"),
+            Some((Some(128_000), Some(16_384)))
+        );
+        // Two bundled providers disagree on this model's context window, so a
+        // custom provider must not inherit either value.
+        assert_eq!(bundled_model_limits("claude-sonnet-4-5"), None);
+        assert_eq!(bundled_model_limits("not-a-bundled-model"), None);
     }
 
     #[test]

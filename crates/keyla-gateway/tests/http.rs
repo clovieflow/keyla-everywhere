@@ -12,6 +12,7 @@ use keyla_gateway::{
     AppState, DependencyStatus, MigrationStatus, Readiness, ReadinessFuture, ReadinessProbe,
     StaticAssets, UnavailableDependencies, build_app,
 };
+use serde_json::Value;
 use tower::util::ServiceExt;
 
 const INDEX: &str = r#"<!doctype html><html><head><meta name="description" content="landing" /><title>Keyla</title><!-- keyla:social-meta:start --><!-- keyla:social-meta:end --></head><body><script>window.__theme='dark'</script></body></html>"#;
@@ -262,4 +263,45 @@ async fn drain_route_does_not_exist_without_a_token() {
         .insert(ConnectInfo(loopback().parse::<SocketAddr>().unwrap()));
     let (status, _, _) = call(&fixture.app, request).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn data_plane_requests_reach_the_console_log_ring() {
+    let fixture = fixture(Arc::new(UnavailableDependencies), None);
+    let request = Request::builder()
+        .method("GET")
+        .uri("/v1/models")
+        .header("user-agent", "openai-node/4.77.0")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _, _) = call(&fixture.app, request).await;
+    // No runtime in this fixture, so the route falls through to the JSON 404.
+    // The log layer still has to record both lifecycle lines.
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let lines: Vec<Value> = keyla_console::logs::snapshot()
+        .into_iter()
+        .filter(|line| line.get("endpoint").and_then(Value::as_str) == Some("/v1/models"))
+        .collect();
+    let start = lines
+        .iter()
+        .find(|line| line.get("event").and_then(Value::as_str) == Some("request_start"))
+        .expect("request_start log line");
+    assert_eq!(start.get("method").and_then(Value::as_str), Some("GET"));
+    assert_eq!(
+        start.get("userAgent").and_then(Value::as_str),
+        Some("openai-node/4.77.0")
+    );
+    assert!(start.get("requestId").and_then(Value::as_str).is_some());
+
+    let complete = lines
+        .iter()
+        .find(|line| line.get("event").and_then(Value::as_str) == Some("request_complete"))
+        .expect("request_complete log line");
+    assert_eq!(complete.get("status").and_then(Value::as_u64), Some(404));
+    assert_eq!(
+        complete.get("requestId"),
+        start.get("requestId"),
+        "start and completion share one request id"
+    );
 }

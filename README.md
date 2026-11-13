@@ -56,6 +56,27 @@ database is configured, the process serves the shell but `/v1` and console data
 routes remain unavailable. This is intentional and visible in `keyla doctor`
 and the startup warning.
 
+## Install
+
+The installer prefers a signed-release binary for your platform and falls back
+to a source build when no release asset exists yet. The fallback requires Git,
+Rust, and Bun:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/clovieflow/keyla-everywhere/main/install.sh | bash
+```
+
+It installs `keyla` into `~/.local/bin` by default. Override the destination or
+force one path:
+
+```bash
+KEYLA_INSTALL_DIR="$HOME/bin" bash install.sh
+bash install.sh --source
+KEYLA_VERSION=1.0.0 bash install.sh --binary
+```
+
+After installing, run `keyla setup`, set `DATABASE_URL`, then `keyla up`.
+
 ## Quick start from source
 
 ```bash

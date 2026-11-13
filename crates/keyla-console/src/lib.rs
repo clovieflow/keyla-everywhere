@@ -13,6 +13,7 @@ pub mod moderation;
 pub mod network;
 pub mod oauth;
 pub mod observability;
+pub mod prompt_injection;
 pub mod providers;
 pub mod public_share;
 pub mod quota;

@@ -148,7 +148,8 @@ export default function ProviderDetail(): ReactNode {
   );
 
   const provider = (providersQuery.data ?? []).find((item) => item.providerId === id);
-  const autoModelSyncProvider = id === "opencodeft" || id === "cline";
+  const autoModelSyncProvider =
+    id === "opencodeft" || id === "cline" || (provider !== undefined && !provider.isBuiltIn);
   const serviceKinds = provider === undefined ? ["llm"] : normalizedServiceKinds(provider);
   const supportedServiceKinds: DashboardServiceKind[] = [];
   for (const kind of serviceKinds) {
@@ -911,6 +912,14 @@ export default function ProviderDetail(): ReactNode {
           state={oauthBrowserSession.state}
           popup={oauthBrowserSession.popup}
           onClose={closeOAuthBrowserSession}
+          onUseApiKey={
+            id === "zcode"
+              ? () => {
+                  closeOAuthBrowserSession(false);
+                  setAddAccountOpen(true);
+                }
+              : undefined
+          }
         />
       )}
     </Stack>

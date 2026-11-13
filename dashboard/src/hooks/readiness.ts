@@ -338,7 +338,7 @@ export interface ReadinessProbe {
   readonly status?: string;
 }
 
-export function useReadinessProbe() {
+export function useReadinessProbe(intervalMs = 5_000) {
   return useQuery<ReadinessProbe, ApiErrorShape>({
     queryKey: queryKeys.system.readinessProbe,
     queryFn: async (context) => {
@@ -367,6 +367,6 @@ export function useReadinessProbe() {
     // Matches `useSystemHealth`: the page shows both side by side, and a
     // readiness line that lags the process figures beside it would have the
     // two panels disagree about the same instant.
-    refetchInterval: 5_000,
+    refetchInterval: intervalMs,
   });
 }

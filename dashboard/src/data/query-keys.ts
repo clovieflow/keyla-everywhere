@@ -85,6 +85,7 @@ export const queryKeys = {
   settings: {
 
     runtime: ["console", "settings", "runtime"] as const,
+    promptInjection: ["console", "settings", "prompt-injection"] as const,
   },
   cliTools: {
     registry: ["console", "cli-tools", "registry"] as const,

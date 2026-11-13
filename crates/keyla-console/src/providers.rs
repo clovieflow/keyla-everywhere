@@ -1609,13 +1609,49 @@ pub async fn create_provider_account(
             "credentialKind must be api_key, oauth, or none",
         );
     }
-    let secret = body.get("secret").and_then(Value::as_str).unwrap_or("");
+    let mut secret = body
+        .get("secret")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
     if credential_kind != "none" && secret.trim().is_empty() {
         return error_response(
             StatusCode::BAD_REQUEST,
             "invalid_request",
             "secret is required for this credential kind",
         );
+    }
+    let mut inferred_label = None;
+    if credential_kind == "api_key" && provider_id == "zcode" {
+        if let Some(claims) = crate::oauth::jwt_payload(&secret).filter(Value::is_object) {
+            inferred_label = claims
+                .get("email")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let client = match reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+            {
+                Ok(client) => client,
+                Err(error) => {
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "internal_error",
+                        &format!("http client: {error}"),
+                    );
+                }
+            };
+            secret = match crate::oauth::mint_zcode_key(&client, &secret).await {
+                Ok(durable) => durable,
+                Err(error) => {
+                    return error_response(
+                        StatusCode::BAD_GATEWAY,
+                        "zai_key_provisioning_failed",
+                        &error,
+                    );
+                }
+            };
+        }
     }
     let auth_state = body
         .get("authState")
@@ -1638,7 +1674,7 @@ pub async fn create_provider_account(
     let fingerprint = if credential_kind == "none" {
         None
     } else {
-        keyla_security::hash_secret(secret)
+        keyla_security::hash_secret(&secret)
             .ok()
             .map(|hash| format!("{}…", &hash[..8]))
     };
@@ -1648,6 +1684,7 @@ pub async fn create_provider_account(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
+        .or(inferred_label)
         .unwrap_or_else(|| keyla_providers::provider_display_name(&provider_id).to_string());
     let inserted = sqlx::query(
         "INSERT INTO provider_accounts (
@@ -2002,6 +2039,37 @@ fn endpoint_for_family(family: &str) -> &'static str {
     }
 }
 
+/// Custom providers usually enter the base URL exactly as their SDK documents
+/// it, which often already ends in `/v1`. Appending the canonical `/v1/...`
+/// path in that case produces `/v1/v1/chat/completions` and a 404. Keep the
+/// version segment once, at whichever layer supplied it.
+fn endpoint_for_base(base_url: &str, family: &str) -> String {
+    let suffix = match family {
+        "messages" => "/messages",
+        "responses" => "/responses",
+        _ => "/chat/completions",
+    };
+    if base_url.trim_end_matches('/').ends_with("/v1") {
+        suffix.to_owned()
+    } else {
+        format!("/v1{suffix}")
+    }
+}
+
+fn probe_url(base_url: &str, route: &str) -> String {
+    let base = base_url.trim_end_matches('/');
+    let route = if route.starts_with('/') {
+        route.to_owned()
+    } else {
+        format!("/{route}")
+    };
+    if base.ends_with("/v1") && route.starts_with("/v1/") {
+        format!("{base}{}", &route[3..])
+    } else {
+        format!("{base}{route}")
+    }
+}
+
 /// `POST /console/api/providers` — register a custom provider.
 pub async fn create_provider(
     State(state): State<ConsoleState>,
@@ -2114,15 +2182,20 @@ pub async fn create_provider(
             else {
                 continue;
             };
+            let (context_limit, output_limit) =
+                keyla_db::seed::bundled_model_limits(model_id).unwrap_or_default();
             let _ = sqlx::query(
-                "INSERT INTO models (provider_id, model_id, wire_family, endpoint_path, enabled)
-                 VALUES ($1, $2, $3::wire_family, $4, true)
+                "INSERT INTO models
+                    (provider_id, model_id, wire_family, endpoint_path, context_limit, output_limit, enabled)
+                 VALUES ($1, $2, $3::wire_family, $4, $5, $6, true)
                  ON CONFLICT (provider_id, model_id, endpoint_path) DO NOTHING",
             )
             .bind(provider_id)
             .bind(model_id)
             .bind(&family)
             .bind(endpoint_for_family(&family))
+            .bind(context_limit)
+            .bind(output_limit)
             .execute(&state.pool)
             .await;
         }
@@ -2677,6 +2750,62 @@ pub async fn test_byok_connection(
     }
 }
 
+fn positive_limit(value: &Value) -> Option<i64> {
+    let number = value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+        .or_else(|| {
+            value
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .map(|value| value as i64)
+        })
+        .or_else(|| value.as_str().and_then(|value| value.trim().parse().ok()));
+    number.filter(|value| (1..=100_000_000).contains(value))
+}
+
+fn limit_at(entry: &Value, path: &[&str]) -> Option<i64> {
+    let mut current = entry;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    positive_limit(current)
+}
+
+fn discovered_limits(entry: &Value) -> (Option<i64>, Option<i64>) {
+    let context_paths: &[&[&str]] = &[
+        &["context_length"],
+        &["context_window"],
+        &["max_context_length"],
+        &["max_context_window"],
+        &["max_context_tokens"],
+        &["max_input_tokens"],
+        &["max_model_len"],
+        &["contextLimit"],
+        &["inputTokenLimit"],
+        &["top_provider", "context_length"],
+        &["limits", "context"],
+        &["meta", "n_ctx_train"],
+        &["architecture", "context_length"],
+        &["model", "context_length"],
+    ];
+    let output_paths: &[&[&str]] = &[
+        &["max_output_tokens"],
+        &["max_output_len"],
+        &["max_completion_tokens"],
+        &["max_tokens"],
+        &["output_limit"],
+        &["outputLimit"],
+        &["top_provider", "max_completion_tokens"],
+        &["limits", "output"],
+        &["model", "max_output_tokens"],
+    ];
+    (
+        context_paths.iter().find_map(|path| limit_at(entry, path)),
+        output_paths.iter().find_map(|path| limit_at(entry, path)),
+    )
+}
+
 /// `POST /console/api/providers/{providerId}/models/sync` — discover models
 /// from an API-key provider's `GET /models` and register the new rows.
 pub async fn sync_provider_models(
@@ -2784,47 +2913,91 @@ pub async fn sync_provider_models(
     }
     let payload: Value = response.json().await.unwrap_or(Value::Null);
     let entries = payload
-        .get("data")
-        .or_else(|| payload.get("models"))
-        .and_then(Value::as_array)
+        .as_array()
         .cloned()
+        .or_else(|| {
+            ["data", "models", "result"]
+                .iter()
+                .find_map(|key| payload.get(*key).and_then(Value::as_array).cloned())
+        })
         .unwrap_or_default();
-    let mut model_ids = Vec::new();
+    let mut discovered: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
     for entry in entries {
         let id = entry
             .get("id")
             .or_else(|| entry.get("name"))
+            .or_else(|| entry.get("model"))
+            .or_else(|| entry.get("modelId"))
             .and_then(Value::as_str)
             .map(str::to_owned);
-        if let Some(id) = id.filter(|value| !value.is_empty()) {
-            model_ids.push(id);
+        let Some(id) = id.filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        let (mut context_limit, mut output_limit) = discovered_limits(&entry);
+        if context_limit.is_none() || output_limit.is_none() {
+            if let Some((known_context, known_output)) = keyla_db::seed::bundled_model_limits(&id) {
+                context_limit = context_limit.or(known_context);
+                output_limit = output_limit.or(known_output);
+            }
         }
+        let limits = discovered.entry(id).or_default();
+        limits.0 = limits.0.max(context_limit);
+        limits.1 = limits.1.max(output_limit);
     }
-    model_ids.sort();
-    model_ids.dedup();
-    let endpoint_path = endpoint_for_family(&family);
+    let endpoint_path = endpoint_for_base(&base_url, &family);
     let mut synced = 0u64;
-    for model_id in &model_ids {
+    let mut enriched = 0u64;
+    for (model_id, (context_limit, output_limit)) in &discovered {
         let result = sqlx::query(
-            "INSERT INTO models (provider_id, model_id, wire_family, endpoint_path, enabled, source)
-             VALUES ($1, $2, $3::wire_family, $4, true, 'discovered')
+            "INSERT INTO models
+                (provider_id, model_id, wire_family, endpoint_path, context_limit, output_limit, enabled, source)
+             VALUES ($1, $2, $3::wire_family, $4, $5, $6, true, 'discovered')
              ON CONFLICT (provider_id, model_id, endpoint_path) DO NOTHING",
         )
         .bind(&provider_id)
         .bind(model_id)
         .bind(&family)
-        .bind(endpoint_path)
+        .bind(&endpoint_path)
+        .bind(*context_limit)
+        .bind(*output_limit)
         .execute(&state.pool)
         .await;
-        if result
+        let inserted = result
             .map(|result| result.rows_affected() > 0)
-            .unwrap_or(false)
-        {
+            .unwrap_or(false);
+        if inserted {
             synced += 1;
+        }
+        // Discovery metadata is not always present on /models. Fill a missing
+        // limit when the upstream now supplies it, but never overwrite a value
+        // an operator or a previous richer response already established.
+        if !inserted && (context_limit.is_some() || output_limit.is_some()) {
+            let result = sqlx::query(
+                "UPDATE models
+                    SET context_limit = COALESCE(context_limit, $4),
+                        output_limit = COALESCE(output_limit, $5)
+                  WHERE provider_id = $1 AND model_id = $2 AND endpoint_path = $3",
+            )
+            .bind(&provider_id)
+            .bind(model_id)
+            .bind(&endpoint_path)
+            .bind(*context_limit)
+            .bind(*output_limit)
+            .execute(&state.pool)
+            .await;
+            if result
+                .map(|result| result.rows_affected() > 0)
+                .unwrap_or(false)
+            {
+                enriched += 1;
+            }
         }
     }
     state.snapshots.invalidate();
-    json_response(StatusCode::OK, json!({"synced": synced}))
+    json_response(
+        StatusCode::OK,
+        json!({"synced": synced, "enriched": enriched}),
+    )
 }
 
 /// `PATCH /console/api/providers/platform/global/{providerId}` — enable or
@@ -3093,7 +3266,16 @@ pub async fn register_provider_models(
             &format!("Provider {provider_id} not found"),
         );
     }
-    let endpoint = endpoint_for_family(&family);
+    let base_url: Option<String> = sqlx::query_scalar(
+        "SELECT base_url FROM providers WHERE id = $1 AND (tenant_id IS NULL OR tenant_id = $2::uuid)",
+    )
+    .bind(&provider_id)
+    .bind(&tenant)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+    let endpoint = endpoint_for_base(base_url.as_deref().unwrap_or(""), &family);
     let mut registered = 0u64;
     let mut models = Vec::new();
     for model in model_ids {
@@ -3104,15 +3286,20 @@ pub async fn register_provider_models(
         else {
             continue;
         };
+        let (context_limit, output_limit) =
+            keyla_db::seed::bundled_model_limits(model_id).unwrap_or_default();
         let result = sqlx::query(
-            "INSERT INTO models (provider_id, model_id, wire_family, endpoint_path, enabled)
-             VALUES ($1, $2, $3::wire_family, $4, true)
+            "INSERT INTO models
+                (provider_id, model_id, wire_family, endpoint_path, context_limit, output_limit, enabled)
+             VALUES ($1, $2, $3::wire_family, $4, $5, $6, true)
              ON CONFLICT (provider_id, model_id, endpoint_path) DO NOTHING",
         )
         .bind(&provider_id)
         .bind(model_id)
         .bind(&family)
-        .bind(endpoint)
+        .bind(&endpoint)
+        .bind(context_limit)
+        .bind(output_limit)
         .execute(&state.pool)
         .await;
         if result
@@ -3120,7 +3307,7 @@ pub async fn register_provider_models(
             .unwrap_or(false)
         {
             registered += 1;
-            models.push(json!({"modelId": model_id, "route": endpoint}));
+            models.push(json!({"modelId": model_id, "route": &endpoint}));
         }
     }
     state.snapshots.invalidate();
@@ -3246,11 +3433,7 @@ async fn resolve_probe_target(
         .get("route")
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .unwrap_or_else(|| match wire_family.as_str() {
-            "messages" => "/v1/messages".into(),
-            "responses" => "/v1/responses".into(),
-            _ => "/v1/chat/completions".into(),
-        });
+        .unwrap_or_else(|| endpoint_for_base(&base_url, &wire_family));
     let account_filter = body.get("accountId").and_then(Value::as_str);
     let account = if let Some(account_id) = account_filter {
         sqlx::query(
@@ -3350,15 +3533,8 @@ async fn probe_target(
             "messages": [{"role": "user", "content": prompt}],
         }),
     };
-    let url = format!(
-        "{}{}",
-        target.base_url.trim_end_matches('/'),
-        if target.route.starts_with('/') {
-            target.route.clone()
-        } else {
-            format!("/{}", target.route)
-        }
-    );
+    let url = probe_url(&target.base_url, &target.route);
+
     let started = std::time::Instant::now();
     let mut request = client.post(&url).json(&payload);
     if let Some(secret) = &target.secret {
@@ -3435,6 +3611,84 @@ async fn probe_target(
     }
 }
 
+fn probe_is_account_retryable(value: &Value) -> bool {
+    let status = value.get("statusCode").and_then(Value::as_u64).unwrap_or(0);
+    matches!(
+        status,
+        401 | 402 | 403 | 408 | 429 | 500 | 502 | 503 | 504 | 529
+    ) || (status == 0 && value.get("error").is_some())
+}
+
+/// Probes one model, trying the provider's other accounts when a key-level
+/// failure (expired credential, quota, capacity, awaiting-usage pause) is
+/// returned. The single-account probe is intentional when the caller supplies
+/// `accountId`; otherwise this must not let the first account hide 30 healthy
+/// ones.
+#[allow(clippy::result_large_err)]
+async fn probe_model_with_failover(
+    state: &ConsoleState,
+    tenant: &str,
+    provider_id: &str,
+    model_id: &str,
+    body: &Value,
+) -> Result<Value, Response> {
+    let account_filter = body.get("accountId").and_then(Value::as_str);
+    let accounts: Vec<String> = if let Some(account_id) = account_filter {
+        vec![account_id.to_owned()]
+    } else {
+        sqlx::query_scalar(
+            "SELECT id::text FROM provider_accounts WHERE provider_id = $1
+               AND (tenant_id IS NULL OR tenant_id = $2::uuid)
+               AND status <> 'disabled'
+             ORDER BY sort_index, created_at",
+        )
+        .bind(provider_id)
+        .bind(tenant)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+    };
+    if accounts.is_empty() {
+        return Err(error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "provider_account_required",
+            "This provider has no active account to probe",
+        ));
+    }
+    let mut last: Option<Value> = None;
+    let mut attempts = 0u64;
+    for account_id in accounts {
+        attempts += 1;
+        let mut account_body = body.clone();
+        if let Some(object) = account_body.as_object_mut() {
+            object.insert("accountId".into(), json!(account_id));
+        }
+        let target = match resolve_probe_target(state, tenant, provider_id, &account_body).await {
+            Ok(target) => target,
+            Err(response) => return Err(response),
+        };
+        let value = probe_target(state, provider_id, model_id, &account_body, &target).await;
+        let ok = value.get("ok").and_then(Value::as_bool).unwrap_or(false);
+        if ok {
+            let mut value = value;
+            if let Some(object) = value.as_object_mut() {
+                object.insert("attempts".into(), json!(attempts));
+            }
+            return Ok(value);
+        }
+        let retryable = probe_is_account_retryable(&value);
+        last = Some(value);
+        if !retryable {
+            break;
+        }
+    }
+    let mut value = last.unwrap_or_else(|| json!({"ok": false, "error": "probe failed"}));
+    if let Some(object) = value.as_object_mut() {
+        object.insert("attempts".into(), json!(attempts));
+    }
+    Ok(value)
+}
+
 /// `POST /console/api/providers/{providerId}/models/probe`.
 pub async fn probe_model(
     State(state): State<ConsoleState>,
@@ -3451,12 +3705,10 @@ pub async fn probe_model(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let target = match resolve_probe_target(&state, &tenant, &provider_id, &body).await {
-        Ok(target) => target,
-        Err(response) => return response,
-    };
-    let value = probe_target(&state, &provider_id, &model_id, &body, &target).await;
-    json_response(StatusCode::OK, value)
+    match probe_model_with_failover(&state, &tenant, &provider_id, &model_id, &body).await {
+        Ok(value) => json_response(StatusCode::OK, value),
+        Err(response) => response,
+    }
 }
 
 /// `POST /console/api/providers/{providerId}/accounts/probe`.
@@ -3537,13 +3789,15 @@ pub async fn probe_all_models(
             "route": route,
             "wireFamily": wire_family,
         });
-        if let Ok(target) = resolve_probe_target(&state, &tenant, &provider_id, &body).await {
-            let probe = probe_target(&state, &provider_id, &model_id, &body, &target).await;
+        if let Ok(probe) =
+            probe_model_with_failover(&state, &tenant, &provider_id, &model_id, &body).await
+        {
             results.push(json!({
                 "modelId": model_id,
                 "ok": probe.get("ok").and_then(Value::as_bool).unwrap_or(false),
                 "latencyMs": probe.get("latencyMs").cloned().unwrap_or(json!(0)),
                 "error": probe.get("error").cloned(),
+                "attempts": probe.get("attempts").cloned(),
             }));
         }
     }
@@ -3551,4 +3805,83 @@ pub async fn probe_all_models(
         StatusCode::OK,
         json!({"providerId": provider_id, "results": results}),
     )
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::{discovered_limits, endpoint_for_base, probe_is_account_retryable, probe_url};
+    use serde_json::json;
+
+    #[test]
+    fn reads_flat_and_nested_model_limits() {
+        let flat = json!({
+            "id": "model-a",
+            "context_length": 128000,
+            "max_completion_tokens": 8192
+        });
+        assert_eq!(discovered_limits(&flat), (Some(128000), Some(8192)));
+
+        let nested = json!({
+            "id": "model-b",
+            "top_provider": {
+                "context_length": 200000,
+                "max_completion_tokens": 64000
+            }
+        });
+        assert_eq!(discovered_limits(&nested), (Some(200000), Some(64000)));
+    }
+
+    #[test]
+    fn custom_base_with_v1_does_not_duplicate_the_version_segment() {
+        assert_eq!(
+            endpoint_for_base("https://code.verboo.ai/router/v1", "chat"),
+            "/chat/completions"
+        );
+        assert_eq!(
+            endpoint_for_base("https://api.openai.com", "chat"),
+            "/v1/chat/completions"
+        );
+        assert_eq!(
+            endpoint_for_base("https://api.anthropic.com/v1/", "messages"),
+            "/messages"
+        );
+    }
+
+    #[test]
+    fn probe_failover_distinguishes_account_failures_from_bad_models() {
+        assert!(probe_is_account_retryable(
+            &json!({"statusCode": 503, "error": "awaiting usage"})
+        ));
+        assert!(probe_is_account_retryable(&json!({"statusCode": 429})));
+        assert!(!probe_is_account_retryable(&json!({"statusCode": 404})));
+        assert!(!probe_is_account_retryable(
+            &json!({"statusCode": 400, "error": "invalid request"})
+        ));
+    }
+
+    #[test]
+    fn model_probe_normalizes_the_version_segment() {
+        assert_eq!(
+            probe_url("https://code.verboo.ai/router/v1", "/chat/completions"),
+            "https://code.verboo.ai/router/v1/chat/completions"
+        );
+        assert_eq!(
+            probe_url("https://code.verboo.ai/router/v1", "/v1/chat/completions"),
+            "https://code.verboo.ai/router/v1/chat/completions"
+        );
+        assert_eq!(
+            probe_url("https://api.openai.com", "/v1/chat/completions"),
+            "https://api.openai.com/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn ignores_absent_and_non_positive_limits() {
+        let entry = json!({
+            "id": "model-c",
+            "context_length": 0,
+            "max_output_tokens": "not-a-number"
+        });
+        assert_eq!(discovered_limits(&entry), (None, None));
+    }
 }

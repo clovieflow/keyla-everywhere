@@ -424,6 +424,11 @@ pub fn console_router_with_policy(pool: PgPool, policy: Option<SessionCookiePoli
             get(crate::settings::get_runtime).patch(crate::settings::update_runtime),
         )
         .route(
+            "/console/api/prompt-injection",
+            get(crate::prompt_injection::get_settings)
+                .patch(crate::prompt_injection::update_settings),
+        )
+        .route(
             "/console/api/system/health",
             get(crate::observability::system_health),
         )

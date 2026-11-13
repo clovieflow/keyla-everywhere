@@ -584,6 +584,13 @@ body::after {
   padding: 0 0 0;
 }
 
+/* The sticky bar is chrome, not a second page header. Keep a deliberate gap
+   between it and the hero on every route; the mobile rule below only tightens
+   the same gap, it does not remove it. */
+.page-head.ed-hero {
+  padding-top: clamp(20px, 2.4vw, 30px);
+}
+
 .ed-hero__top {
   display: flex;
   align-items: flex-end;
@@ -1951,11 +1958,15 @@ input[type="range"] {
 
 /* Logs and other fixed-height work surfaces keep a compact hero. */
 .console-log-page .page-head {
-  padding: 34px 0 22px;
+  padding: 22px 0 14px;
 }
 
 .console-log-page .ed-hero__title {
-  font-size: clamp(40px, 4.4vw, 58px);
+  font-size: clamp(34px, 3.8vw, 50px);
+}
+
+.console-log-page .ed-hero__description {
+  margin-top: 16px;
 }
 
 /* The old comment on the log page called this a vignette; it is now a real

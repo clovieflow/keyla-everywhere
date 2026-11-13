@@ -66,6 +66,10 @@ const About = lazyWithRetry(() => import("./routes/About"), "about");
 const CliTools = lazyWithRetry(() => import("./routes/CliTools"), "cli-tools");
 const CliToolDetail = lazyWithRetry(() => import("./routes/CliToolDetail"), "cli-tool-detail");
 const ConsoleLogPage = lazyWithRetry(() => import("./features/logs/ConsoleLogPage"), "console-log");
+const PromptInjectionPage = lazyWithRetry(
+  () => import("./features/prompt-injection/PromptInjectionPage"),
+  "prompt-injection",
+);
 const Studio = lazyWithRetry(() => import("./routes/Studio"), "studio");
 const Bansos = lazyWithRetry(() => import("./routes/Bansos"), "bansos");
 const BansosPublic = lazyWithRetry(() => import("./routes/BansosPublic"), "bansos-public");
@@ -216,6 +220,7 @@ function ProtectedRoutes(): ReactNode {
           <Route path="/bansos" element={<Bansos />} />
           <Route path="/bansos/:programId" element={<Bansos />} />
           <Route path="/console-log" element={<ConsoleLogPage />} />
+          <Route path="/prompt-injection" element={<PromptInjectionPage />} />
           <Route path="/model-lab" element={<Studio />} />
           <Route path="/cli-tools" element={<CliTools />} />
           <Route path="/cli-tools/:toolId" element={<CliToolDetail />} />
