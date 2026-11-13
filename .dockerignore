@@ -1,0 +1,58 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Node.js and package management
+node_modules
+npm-debug.log
+yarn-error.log
+.pnp
+.pnp.js
+
+# Build and distribution
+/build
+/dist
+/target
+
+# Local build artifacts. The runtime image ships only the compiled binary.
+bin
+.cache
+
+# Development tools and IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Agent working state
+.claude
+# Environment files and secrets
+.env*
+!.env.example
+*.pem
+*.key
+*.crt
+*.pfx
+*.dump
+*.sql
+backups
+!migrations/
+!migrations/*.sql
+# Testing
+coverage
+.nyc_output
+*.lcov
+# Documentation
+CHANGELOG.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+.travis.yml
+
+# Project-specific
+docker-compose*.yml

@@ -1,0 +1,39 @@
+[package]
+name = "keyla-console"
+description = "Console authentication, sessions, and API domains for the Keyla gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+argon2 = "0.5"
+axum = "0.8"
+base64.workspace = true
+sha2 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "socks", "gzip", "brotli"] }
+chrono = "0.4"
+keyla-config = { path = "../keyla-config" }
+keyla-db = { path = "../keyla-db" }
+keyla-routing = { path = "../keyla-routing" }
+keyla-core = { path = "../keyla-core" }
+keyla-providers = { path = "../keyla-providers" }
+keyla-security = { path = "../keyla-security" }
+rand = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+sysinfo = "0.33"
+async-stream = "0.3"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "json", "uuid", "chrono"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "net"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+keyla-db = { path = "../keyla-db" }
+http-body-util = "0.1"
+postgresql_embedded = { version = "0.22", features = ["blocking"] }
+tower = { version = "0.5", features = ["util"] }

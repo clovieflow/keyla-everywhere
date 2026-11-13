@@ -1,0 +1,15 @@
+[package]
+name = "keyla-routing"
+description = "Route snapshot, eligibility, ordering, and reservation for the Keyla gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+keyla-core = { path = "../keyla-core" }
+serde_json.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/keyla-config",
+    "crates/keyla-cli",
+    "crates/keyla-console",
+    "crates/keyla-core",
+    "crates/keyla-db",
+    "crates/keyla-observability",
+    "crates/keyla-protocol",
+    "crates/keyla-providers",
+    "crates/keyla-routing",
+    "crates/keyla-security",
+    "crates/keyla-gateway",
+]
+
+[workspace.package]
+version = "2.3.0-keyla.1"
+edition = "2024"
+license = "GPL-3.0-only"
+rust-version = "1.87"
+
+[workspace.dependencies]
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

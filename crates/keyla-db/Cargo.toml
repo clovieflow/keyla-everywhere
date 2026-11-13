@@ -1,0 +1,26 @@
+[package]
+name = "keyla-db"
+description = "PostgreSQL pool, migration runner, and readiness for the Keyla gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+keyla-config = { path = "../keyla-config" }
+keyla-core = { path = "../keyla-core" }
+keyla-providers = { path = "../keyla-providers" }
+keyla-routing = { path = "../keyla-routing" }
+chrono = "0.4"
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "json", "chrono", "uuid", "macros"] }
+thiserror = "2"
+include_dir = "0.7"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "net"] }
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+postgresql_embedded = { version = "0.22", features = ["blocking"] }
+tempfile = "3"

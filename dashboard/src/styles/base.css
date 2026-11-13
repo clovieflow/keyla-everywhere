@@ -1,0 +1,1620 @@
+@import "tailwindcss";
+
+/* Shared Tailwind layer, theme tokens, resets, and base elements.
+ *
+ * ── Console palette ownership ─────────────────────────────────────────────────
+ * This file is the single owner of the console/share palette. The two theme
+ * blocks below are Light palette (default, warm cream + indigo) and Dark palette —
+ * Sumi & Vermilion (warm charcoal, vermilion action, champagne gold). They are
+ * designed independently — Noir is not a colour inversion of Day — and share
+ * only the structural tokens (radii, type, motion, z-order).
+ *
+ * `data-theme` is always the RESOLVED theme (`light` | `dark`), never
+ * `system`: `shared/theme.ts` resolves the operator's stored preference and
+ * writes the effective value, so this stylesheet needs no
+ * `prefers-color-scheme` branch and the OS switch is handled in one place.
+ * The raw preference is mirrored onto `data-theme-choice` for the UI.
+ *
+ * Contrast must be checked on rendered glass surfaces, not just token pairs.
+ * Live axe-core evidence belongs in the release report.
+ */
+:root {
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-micro: 150ms;
+  --dur-macro: 250ms;
+
+  /* Typography & Sizing */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-head: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius-control: 10px;
+  --radius-card: 18px;
+  --radius-sidebar: 20px;
+  --radius-pill: 9999px;
+  /* App topbar height (38px control + 8px padding ×2 + 1px border ×2). Pages
+     that pin a toolbar below it offset by this value. */
+  --topbar-height: 56px;
+
+  /* Type scale (structural, theme-independent). Consumers may still write
+     literal sizes; these exist so new surfaces do not invent a fourth scale. */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* Spacing scale (structural). */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* ── the light palette (light) ─────────────────────────────────────────────────── */
+  --page-bg: #f7f5f2;
+  --surface-1: #fffefb;
+  --surface-2: #fffdf9;
+  --surface-muted: #f1eee9;
+  --surface-hover: #eae6e0;
+  --surface-active: #e2ddd6;
+
+  --text-primary: #23262f;
+  --text-secondary: #5f6472;
+  --text-tertiary: #656c7a;
+
+  --border-subtle: #e2ddd4;
+  --border-strong: #d3ccc1;
+  --inner-border: var(--border-subtle);
+  --glass-border: var(--border-strong);
+
+  --accent: #4f46c8;
+  --accent-soft: #eae8fa;
+  --accent-foreground: #ffffff;
+  --accent-hover: #3f37ae;
+
+  /* Day status palette. Values are the smallest darkening that clears 4.5:1 on
+     both surface-1 and page-bg, measured with the WCAG relative-luminance
+     formula: success 5.28:1, danger 5.84:1, warning 5.58:1, info 5.30:1.
+     Live axe-core found the previous success (#2f8a5f, 4.23:1) and warning
+     (#b4700f, 3.95:1) below the AA floor on rendered surfaces. */
+  --status-success: #1e7a4b;
+  --status-danger: #a8443f;
+  --status-warning: #96590a;
+  --status-info: #3568c4;
+
+  --green: var(--status-success);
+  --red: var(--status-danger);
+  --orange: var(--status-warning);
+  --teal: #1f6b72;
+  --purple: #6d4fc4;
+  /* Terminal-surface colors. The console log renders on a fixed dark surface
+     (#050606) in BOTH themes, so these must not follow the theme: the Day
+     accent (#453cc4) measured 2.6:1 and the Day warning 3.6:1 there. Values
+     are measured against #050606: info 10.2:1, warn 11.0:1, error 8.4:1,
+     debug 7.7:1. */
+  --terminal-info: #b5b0fa;
+  --terminal-warn: #f0b455;
+  --terminal-error: #ff8080;
+  --terminal-debug: #98a29e;
+  /* Brand rose. Decorative/identity only — never the sole carrier of a
+     status meaning, and always paired with a label where it is informative. */
+  --rose: #c2517a;
+  --indigo: #4f46c8;
+
+  --green-soft: #e9f4ee;
+  --red-soft: #f9ecea;
+  --orange-soft: #faf0e0;
+  --teal-soft: #e6f2f3;
+  --purple-soft: #efeafa;
+  --rose-soft: #fbeef3;
+
+  --focus-ring: #4f46c8;
+  --track: #e2ddd4;
+  --code-surface: #faf8f4;
+  --popover-bg: #fffefb;
+  --hover: var(--surface-muted);
+  --active-pill: var(--surface-hover);
+  --kbd-bg: #f0ece6;
+  --input-bg: var(--surface-2);
+  --border-soft: var(--border-subtle);
+
+  --glass-bg: rgba(255, 254, 251, 0.70);
+  --glass-bg-2: rgba(255, 254, 251, 0.88);
+  --glass-border-2: rgba(255, 255, 255, 0.72);
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-shade: rgba(38, 33, 66, 0.06);
+  --shadow-card: 0 1px 2px rgba(38, 33, 66, 0.05), 0 10px 28px -6px rgba(38, 33, 66, 0.09);
+  --shadow-popout: 0 20px 50px -12px rgba(38, 33, 66, 0.2), 0 0 0 1px var(--inner-border);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* ── the dark palette — Sumi & Vermilion (dark) ────────────────────────────────
+   * Warm Japanese charcoal instead of the previous indigo-slate: sumi ink
+   * greys carry a brown undertone (R>G>B on every surface) so the console
+   * reads as ink on paper rather than as a blue-black SaaS panel. Vermilion
+   * is the action colour, champagne gold is the premium detail, and the
+   * semantic green/amber/red are reserved for real status.
+   *
+   * Contrast was measured, not eyeballed, with the WCAG relative-luminance
+   * formula. Two values from the original art direction were adjusted to clear
+   * 4.5:1 on the LIGHTEST surface they appear on (--surface-2 #292320):
+   *   accent  #C95F55 3.87:1 -> #DE776C 5.14:1
+   *   tertiary #918579 4.30:1 -> #9A8C80 4.75:1
+   * Everything below clears 4.5:1 on surface-2, the worst case. Secondary
+   * hues (teal/purple/rose/indigo) are deliberately desaturated to sage,
+   * mauve, dusty rose and taupe: they are category tags, not status, and a
+   * saturated violet tag would re-introduce the palette this theme replaces.
+   */
+  --page-bg: #141210;
+  --surface-1: #211d1b;
+  --surface-2: #292320;
+  --surface-muted: #1c1917;
+  --surface-hover: #332b27;
+  --surface-active: #3d332e;
+
+  --text-primary: #f2eae0;
+  --text-secondary: #b7a99b;
+  --text-tertiary: #9a8c80;
+
+  --border-subtle: #38312d;
+  --border-strong: #52443d;
+  --inner-border: var(--border-subtle);
+  --glass-border: var(--border-strong);
+
+  --accent: #de776c;
+  --accent-soft: #33231f;
+  --accent-foreground: #141210;
+  --accent-hover: #e88a7f;
+
+  --status-success: #8faa92;
+  --status-danger: #da756c;
+  --status-warning: #d7a45f;
+  --status-info: #9aafa8;
+
+  --green: var(--status-success);
+  --red: var(--status-danger);
+  --orange: var(--status-warning);
+  --teal: #8faaa4;
+  --purple: #b9a0ae;
+  --rose: #d19a93;
+  --indigo: #b5a79c;
+  /* Champagne gold. Premium detailing only — never a status carrier. */
+  --gold: #d1ad79;
+
+  --green-soft: #1f2a22;
+  --red-soft: #33211f;
+  --orange-soft: #2e2617;
+  --teal-soft: #1f2a28;
+  --purple-soft: #2a2327;
+  --rose-soft: #2e2222;
+
+  --focus-ring: #e88a7f;
+  --track: #38312d;
+  --code-surface: #1c1917;
+  --popover-bg: #292320;
+  --hover: var(--surface-muted);
+  --active-pill: var(--surface-hover);
+  --kbd-bg: #2a2320;
+  /* The sidebar sits deeper than the page so the main column reads as the
+     raised surface, matching the layered sumi stack in the art direction. */
+  /* 0.62 rather than the previous 0.82: the sidebar is meant to read as a
+     translucent panel floating over the atmosphere, and at 0.82 the background
+     photograph was effectively invisible behind it. Measured against the
+     reference, whose sidebar samples at luminance ~73 with the environment
+     clearly visible through it. The blur and the inset highlight carry the
+     legibility that the extra opacity was doing before. */
+  --sidebar-bg: rgba(24, 21, 19, 0.62);
+
+  /* ── Liquid glass ────────────────────────────────────────────────────────
+   * Three ingredients make a surface read as glass rather than as a
+   * translucent rectangle, and all three are needed:
+   *
+   *  1. a translucent fill, so the layer behind shows through;
+   *  2. a backdrop blur with SATURATION — Apple's material does not only
+   *     soften what is behind it, it lifts its colour, which is what stops
+   *     glass over a dark background from turning into flat grey;
+   *  3. a light edge — a brighter 1px top inset and a dimmer bottom, which is
+   *     what actually reads as thickness. Without it the surface is a blur.
+   *
+   * The values are deliberately restrained: the assignment asks for controlled
+   * liquid-glass, not frosted-everything. Peak blur is 28px on the topbar and
+   * the specular highlight tops out at 7% white.
+   */
+  --glass-bg: rgba(33, 29, 27, 0.62);
+  --glass-bg-2: rgba(41, 35, 32, 0.80);
+  --glass-border-2: rgba(242, 234, 224, 0.14);
+  --glass-blur: 18px;
+  --glass-saturate: 165%;
+  --glass-highlight: rgba(242, 234, 224, 0.07);
+  --glass-shade: rgba(12, 9, 8, 0.34);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.34), 0 16px 40px rgba(12, 9, 8, 0.46);
+  --shadow-popout: 0 24px 60px -12px rgba(12, 9, 8, 0.66), 0 0 0 1px var(--inner-border);
+
+  color-scheme: dark;
+}
+
+/* the dark palette gives the sidebar its own depth instead of reusing the shared
+   glass wash, so the navigation column and the topbar no longer read as one
+   continuous slab. Scoped to dark only: the light palette keeps the existing glass. */
+:root[data-theme="dark"] .app-sidebar {
+  background: var(--sidebar-bg);
+}
+
+/* Console document reset. Keep it in Tailwind's base layer so utilities can
+   override default spacing on the public Landing and component surfaces. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Scrollbars: the page column hides its bar, while contained regions (the
+   sidebar rail, dialogs, `.scroll-region`) keep a thin overlay style. */
+.app-sidebar nav,
+.dialog-panel .modal-body,
+.scroll-region {
+  scrollbar-width: thin;
+  scrollbar-color: var(--inner-border) transparent;
+}
+
+/* The page column still scrolls, it just does not draw a bar: the content is
+   the signal, and the rail is always visible for orientation anyway. */
+.app-main-column {
+  scrollbar-width: none;
+}
+
+.app-main-column::-webkit-scrollbar {
+  display: none;
+}
+
+.app-sidebar nav::-webkit-scrollbar,
+.dialog-panel .modal-body::-webkit-scrollbar,
+.scroll-region::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.app-sidebar nav::-webkit-scrollbar-thumb,
+.dialog-panel .modal-body::-webkit-scrollbar-thumb,
+.scroll-region::-webkit-scrollbar-thumb {
+  background: var(--inner-border);
+  border-radius: 999px;
+}
+
+.app-sidebar nav::-webkit-scrollbar-track,
+.dialog-panel .modal-body::-webkit-scrollbar-track,
+.scroll-region::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/*
+ * A contained scroll area, styled like the sidebar rail: content moves inside
+ * its own box while the surrounding chrome (headers, toolbars, the page
+ * itself) stays put. Pair it with a height/max-height and `overflow-y: auto`.
+ */
+.scroll-region {
+  overflow-y: auto;
+  /* No `overscroll-behavior: contain`: once this region hits its end the wheel
+   * must keep scrolling the page, not stop dead against the edge. */
+}
+
+html {
+  font-size: 14px;
+  height: 100%;
+  height: 100dvh;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  height: 100dvh;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background-color: var(--page-bg);
+  background-image:
+    radial-gradient(
+      at 15% 10%,
+      color-mix(in srgb, var(--purple) 8%, transparent) 0px,
+      transparent 50%
+    ),
+    radial-gradient(
+      at 85% 85%,
+      color-mix(in srgb, var(--teal) 6%, transparent) 0px,
+      transparent 50%
+    ),
+    radial-gradient(
+      at 50% 50%,
+      color-mix(in srgb, var(--orange) 4%, transparent) 0px,
+      transparent 60%
+    );
+  background-attachment: fixed;
+  overflow: hidden;
+}
+
+/**
+ * The document itself must be transparent for the atmosphere to show.
+ *
+ * `html` and `body` both carried an opaque `--page-bg`. A fixed layer at
+ * `z-index: -2` paints behind its own stacking context but *above* the
+ * document background, so the photograph was rendered and then covered by
+ * these two fills — the element was visible in the inspector and invisible on
+ * screen.
+ *
+ * Dark theme only: the light palette keeps its paper field, and the light theme is
+ * explicitly not given a night photograph.
+ */
+/* `:root` IS the html element, so the html selector must be `:root` itself —
+   `:root[data-theme="dark"] html` describes an html inside an html and matches
+   nothing, which is why the first attempt left the document opaque. */
+:root[data-theme="dark"],
+:root[data-theme="dark"] body {
+  background: transparent;
+}
+
+html[data-ambient-glow="off"] body {
+  background-image: none;
+}
+.custom-background-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  filter: blur(var(--custom-bg-blur, 2px));
+  transform: scale(1.02);
+}
+
+
+/* Branding dropzone & skeleton */
+.branding-dropzone {
+  border: 1px dashed var(--inner-border);
+  border-radius: 10px;
+  padding: 14px;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.branding-dropzone-active {
+  border-color: var(--accent);
+  background: var(--active-pill);
+}
+
+/* Keyboard-operable dropzones: visible focus ring. */
+.branding-dropzone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.skeleton-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: linear-gradient(
+    100deg,
+    var(--surface-2) 40%,
+    var(--inner-border) 50%,
+    var(--surface-2) 60%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+/**
+ * ── Motion ──────────────────────────────────────────────────────────────────
+ * Four movements, all short and all on the spring easing the design system
+ * already uses. They exist to make the console feel assembled rather than
+ * painted: a surface arrives, a page settles, a list reveals in sequence, a
+ * number changes without jumping.
+ *
+ * Everything here is inside a `prefers-reduced-motion` guard at the bottom of
+ * this block, so an operator who asks for stillness gets stillness.
+ */
+@keyframes glass-arrive {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-settle {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes list-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The sheen that crosses a glass edge once, on arrival. It is a gradient that
+   travels rather than an opacity fade, so it reads as light moving over a
+   surface instead of the surface appearing. */
+@keyframes glass-sheen {
+  from {
+    background-position: -140% 0;
+  }
+  to {
+    background-position: 240% 0;
+  }
+}
+
+.animate-arrive {
+  animation: glass-arrive var(--dur-macro) var(--ease-spring) both;
+}
+
+.animate-settle {
+  animation: page-settle 320ms var(--ease-spring) both;
+}
+
+/* Staggered reveal for a list of surfaces. `--reveal-index` is set inline by
+   the consumer; the delay is capped so a long table never waits seconds for
+   its last row. */
+.animate-reveal {
+  animation: list-reveal 300ms var(--ease-spring) both;
+  animation-delay: min(calc(var(--reveal-index, 0) * 28ms), 240ms);
+}
+
+/* One pass of light across a freshly mounted glass surface. */
+.glass-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--glass-highlight) 90%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: glass-sheen 900ms var(--ease-spring) 120ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-arrive,
+  .animate-settle,
+  .animate-reveal,
+  .glass-sheen::after {
+    animation: none;
+  }
+  .glass-interactive:hover {
+    transform: none;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+html[data-glass-depth="2"] {
+  --glass-depth: 2;
+}
+
+@media (max-width: 640px) {
+  .custom-background-layer {
+    filter: blur(min(var(--custom-bg-blur, 2px), 4px));
+  }
+}
+#root {
+  height: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
+  color: var(--text-primary);
+}
+
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    /* Dimmed with explicit tokens rather than opacity: a 0.55 composite of
+       text-primary on the hover surface measured 4.31:1 in live axe-core,
+       below the 4.5:1 AA floor. These pairs are contrast-checked. */
+    color: var(--text-secondary);
+    background: var(--surface-muted);
+    border-color: var(--border-subtle);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+@layer base {
+  h1,
+  h2,
+  h3,
+  .topbar-title,
+  .brand-name,
+  .auth-title,
+  .section-header-text h1,
+  .section-header-text h2 {
+    font-family: var(--font-head);
+    letter-spacing: -0.015em;
+    font-weight: 700;
+  }
+
+  code,
+  kbd,
+  pre,
+  .stat-card-value {
+    font-family: var(--font-mono);
+    font-feature-settings:
+      "calt" 1,
+      "zero" 1;
+    font-variant-ligatures: normal;
+  }
+
+  pre,
+  code {
+    word-break: break-all;
+  }
+}
+
+/* Shared card surfaces and component header/body frames. */
+.card-solid,
+.card-glass,
+.card-muted {
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-card);
+}
+
+.card-solid,
+.card-glass {
+  box-shadow: var(--shadow-card);
+}
+
+/* The default card is Content Glass in the dark theme.
+ *
+ * Every console page outside Ringkasan was still rendering an opaque
+ * `--surface-1`, so the Liquid Glass treatment stopped at the one screen it
+ * was designed on: `/providers` alone had 45 solid cards. Opting 45 call
+ * sites into `glass` would have been a large diff with a silent failure mode
+ * — any card added later would revert to opaque without anyone noticing.
+ *
+ * Making the default itself glass means a new card is correct by
+ * construction. Light theme keeps the opaque surface, and a browser without
+ * `backdrop-filter` falls back to it through the rule below. */
+.card-solid {
+  background: var(--surface-1);
+}
+
+:root[data-theme="dark"] .card-solid {
+  /* `--card-glass-depth` is declared by the `.card-glass` rule, not globally.
+     Reading it here without declaring it made the whole `calc()` invalid, and
+     CSS drops an invalid declaration silently — the background turned glass
+     while the blur never arrived, which is exactly what the browser reported.
+     The variable is set below, and the fallback in `var()` keeps the
+     expression valid even if that assignment is ever removed. */
+  --card-glass-depth: var(--glass-depth, 1);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + (var(--card-glass-depth, 1) * 5px)))
+    saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) + (var(--card-glass-depth, 1) * 5px)))
+    saturate(var(--glass-saturate));
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 var(--glass-shade),
+    var(--shadow-card);
+}
+
+/* No backdrop-filter means no glass: an opaque surface, not a translucent one
+   with the photograph showing through the text. */
+@supports not (backdrop-filter: blur(1px)) {
+  :root[data-theme="dark"] .card-solid {
+    background: var(--surface-1);
+  }
+}
+
+.card-glass {
+  background: var(--glass-bg);
+}
+
+.card-muted {
+  background: var(--surface-2);
+}
+
+/**
+ * Liquid-glass surface.
+ *
+ * `blur() saturate()` is the pair that matters: blur alone over a dark page
+ * produces grey mud, because averaging dark pixels can only ever give a
+ * flatter dark. Raising saturation keeps the colour that survives the blur.
+ *
+ * The two inset shadows are the light edge. They are `inset` rather than a
+ * border so they follow the corner radius exactly, and they are drawn with
+ * the theme's own highlight/shade tokens so Day and Noir each get an edge
+ * that suits their surface.
+ */
+.glass,
+.card-glass,
+html[data-glass-enabled="true"] .card-solid {
+  --card-glass-depth: var(--glass-depth, 1);
+  background: var(--glass-bg);
+  /**
+   * Order matters here, and the minifier is the reason.
+   *
+   * Lightning CSS treats `-webkit-backdrop-filter` as the "prefixed" form of
+   * `backdrop-filter` and collapses the pair, keeping only the LAST one it
+   * sees. With the webkit line written second, the standard property was
+   * dropped from the build entirely — and Chromium honours the standard one,
+   * so every glass surface rendered with no blur at all while the stylesheet
+   * looked correct. Declaring the prefixed form FIRST keeps the standard
+   * property in the output, which is what browsers actually use.
+   */
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + (var(--card-glass-depth) * 5px)))
+    saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) + (var(--card-glass-depth) * 5px)))
+    saturate(var(--glass-saturate));
+  border: 1px solid var(--inner-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 var(--glass-shade),
+    var(--shadow-card);
+  transition:
+    background-color var(--dur-macro) var(--ease-spring),
+    border-color var(--dur-macro) var(--ease-spring),
+    box-shadow var(--dur-macro) var(--ease-spring);
+}
+
+/* A glass surface that is also interactive lifts very slightly on hover. This
+   is the "alive" cue from the Apple materials: the surface acknowledges the
+   pointer without moving enough to disturb a dense table. */
+@media (hover: hover) {
+  .glass-interactive:hover {
+    background: var(--glass-bg-2);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      inset 0 -1px 0 var(--glass-shade),
+      var(--shadow-popout);
+    transform: translateY(-1px);
+  }
+  .glass-interactive:active {
+    transform: translateY(0);
+    transition-duration: var(--dur-micro);
+  }
+}
+
+.glass-interactive {
+  transition:
+    transform var(--dur-macro) var(--ease-spring),
+    background-color var(--dur-macro) var(--ease-spring),
+    box-shadow var(--dur-macro) var(--ease-spring),
+    border-color var(--dur-macro) var(--ease-spring);
+}
+
+/* Browsers without backdrop-filter get an opaque surface instead of a
+   see-through one with unreadable text on it. */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass,
+  .card-glass,
+  html[data-glass-enabled="true"] .card-solid {
+    background: var(--surface-1);
+  }
+}
+
+.card-elevation-none {
+  box-shadow: none;
+}
+
+.card-elevation-card {
+  box-shadow: var(--shadow-card);
+}
+
+.card-elevation-popout {
+  box-shadow: var(--shadow-popout);
+}
+
+.card-solid[data-depth="1"],
+.card-glass[data-depth="1"],
+.card-muted[data-depth="1"] {
+  --card-glass-depth: 1;
+}
+
+.card-solid[data-depth="2"],
+.card-glass[data-depth="2"],
+.card-muted[data-depth="2"] {
+  --card-glass-depth: 2;
+}
+
+.card-solid[data-depth="3"],
+.card-glass[data-depth="3"],
+.card-muted[data-depth="3"] {
+  --card-glass-depth: 3;
+}
+
+.card-compact {
+  line-height: 1.35;
+}
+
+.card-compact .card-body-content {
+  padding: 10px 14px;
+}
+
+.card-compact .card-header-bar {
+  padding: 8px 14px;
+}
+/* Panel & Card Frames */
+.card-header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--inner-border);
+}
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Window-style controls at the far left; a tighter gap than the icon/title pair
+   keeps them visually separate from the card's identity. */
+.card-header-leading {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.card-header-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+}
+
+.card-header-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.card-header-titles {
+  min-width: 0;
+}
+
+.card-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.card-header-subtitle {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.card-header-subtitle-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 1px;
+  min-width: 0;
+}
+
+.card-header-subtitle-row .card-header-subtitle {
+  margin: 0;
+}
+.card-body-content {
+  padding: 12px 14px;
+}
+
+/* Shared controls: buttons, forms, inputs, switches, tables, and badges. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--radius-control);
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  transition: all var(--dur-micro) var(--ease-spring);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  border: 1px solid var(--inner-border);
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--active-pill);
+  border-color: var(--border-strong);
+}
+
+.btn-ghost {
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  background: var(--red);
+  /* Follows the accent's foreground rather than a literal white: the Noir
+     danger red is a light salmon, so white text on it measured 3.11:1. The
+     token resolves to ink in dark (6.00:1) and white in Day (5.89:1). */
+  color: var(--accent-foreground);
+}
+
+.btn-danger:hover {
+  opacity: 0.9;
+}
+
+.btn-sm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+/*
+ * Labeled icon button: renders as an icon + text pill while its container has
+ * room, then collapses to a square icon button once it does not. Driven by
+ * container queries rather than a viewport breakpoint so the collapse tracks
+ * the actual row width (the sidebar and page padding are not part of it).
+ * The label is decorative — `aria-label` on the button stays authoritative.
+ */
+.btn-labeled {
+  height: 30px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.btn-labeled .btn-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-labeled .btn-label {
+  white-space: nowrap;
+}
+
+@container rule-row (max-width: 820px) {
+  .btn-labeled {
+    width: 30px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+
+  .btn-labeled .btn-label {
+    display: none;
+  }
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--radius-pill);
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-default {
+  background: var(--hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--inner-border);
+}
+
+.badge-ok,
+.badge-active {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.badge-err,
+.badge-disabled {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.badge-warn {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.badge-info {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+.badge-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Model catalog cards */
+.model-card {
+  transition: border-color 120ms ease;
+}
+
+.model-card:hover {
+  border-color: var(--border-strong);
+}
+
+.model-card-delete:hover {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+/* Forms & Inputs */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.form-error {
+  font-size: 11.5px;
+  color: var(--red);
+  margin-top: 4px;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color var(--dur-micro) var(--ease-spring),
+    box-shadow var(--dur-micro) var(--ease-spring);
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* Switches */
+.switch-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch-container.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.switch-track {
+  width: 42px;
+  height: 24px;
+  border-radius: 9999px;
+  padding: 2px;
+  transition:
+    background-color 160ms var(--ease-spring),
+    border-color 160ms var(--ease-spring);
+  background-color: var(--track);
+  border: 1px solid var(--inner-border);
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: inherit;
+}
+
+.switch-track.is-checked {
+  background-color: var(--accent);
+}
+
+.switch-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background-color: var(--surface-1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transform: translateX(0px);
+  transition:
+    transform 180ms var(--ease-spring),
+    background-color 180ms var(--ease-spring);
+  display: block;
+}
+
+.switch-track.is-checked .switch-thumb {
+  background-color: var(--accent-foreground);
+  transform: translateX(18px);
+}
+
+.switch-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Data Tables */
+.data-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.data-table th {
+  padding: 7px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--inner-border);
+  white-space: nowrap;
+}
+
+/* Sticky header: this container must be the scroller (pass `maxHeight`) or
+ * the header scrolls away with the rows. An ancestor that also scrolls wins
+ * instead, which is why the pages hand `maxHeight` here rather than wrapping
+ * the table in their own overflow box. */
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-1);
+  /* Keep the header above the rows' own sticky-ish content and give it a
+   * solid backing so scrolled rows cannot show through. */
+  box-shadow: inset 0 -1px 0 var(--inner-border);
+}
+
+.data-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--inner-border);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Action buttons inside a data table are icon-only; the default `btn-sm`
+   padding is sized for a text label and makes dense rows twice as wide. */
+.data-table .btn-sm {
+  height: 26px;
+  padding: 0 6px;
+}
+
+/* Shared empty, loading, error, authentication, and API-key states. */
+
+/* The centering host. `flex: 1` lets it claim the leftover height of whatever
+   column it sits in, and `min-height` keeps it from collapsing to nothing when
+   that column has no free space (a state nested mid-card). */
+.state-viewport {
+  flex: 1 1 auto;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* A route-level state is the page's whole body, so it centers in the visible
+   content area rather than in its own content height.
+
+   It cannot simply grow: the shell's column is exactly as tall as its children
+   (its gaps and bottom padding consume every pixel), so there is no free space
+   for `main` to expand into and a growing box would only push a scrollbar onto
+   a page that has nothing to scroll. A viewport-relative floor is what actually
+   puts the card in the middle of what the operator is looking at; the constant
+   is the shell chrome above and below (topbar + footer clock + gaps + padding),
+   so the box always fits without overflowing at any window height.
+
+   Scoped to a direct child of `main` so a state nested inside a card keeps its
+   compact height. */
+main > .state-viewport {
+  min-height: clamp(220px, calc(100dvh - 270px), 1000px);
+}
+
+/* A state inside a dialog or card has no route to center in, so it drops the
+   floor and the oversized padding and reads as an inline message. */
+.state-viewport-compact {
+  min-height: 0;
+  padding: 4px 0;
+}
+
+.state-viewport-compact .state-box {
+  gap: 6px;
+  padding: 8px;
+}
+
+.state-viewport-compact .state-box-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.state-box {
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.state-box-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  display: grid;
+  place-items: center;
+  background: var(--hover);
+  color: var(--text-tertiary);
+}
+
+.state-box-icon-danger {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+}
+
+.state-box h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.state-box p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 360px;
+}
+
+.state-box-label {
+  font-weight: 500;
+}
+
+/* Auth View (Login & Setup) */
+.auth-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-window {
+  width: min(100%, 420px);
+  border-radius: 24px;
+  padding: 36px 32px;
+  box-shadow: 0 24px 70px -15px rgba(0, 0, 0, 0.45);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.auth-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 auto 14px;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.auth-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.auth-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.api-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scope-fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid var(--inner-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.scope-fieldset legend {
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.scope-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font: 500 11px var(--font-mono);
+}
+
+.quota-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quota-controls .form-label {
+  grid-column: 1 / -1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.secret-reveal {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.secret-reveal strong {
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+.secret-reveal span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.secret-reveal code {
+  display: block;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--inner-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.api-key-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.api-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--inner-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.api-key-row strong {
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+.api-key-row p {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+@media (max-width: 560px) {
+  .quota-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* GitHub repo link with live star/fork badges. Shared by the landing page and
+   the public share page, which load different stylesheets, so it lives here.
+   The chip is neutral: each host surface overrides its colors for its theme. */
+.github-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.github-badge:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.github-badge:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The counts are SVG images from the badge host; the chip keeps them legible
+   without stretching them, and the link is the accessible name. */
+.github-badge-metric {
+  display: block;
+  height: 20px;
+  width: auto;
+}
+
+/* Native checkboxes render at ~13px, which reads as a speck next to the 32px
+   controls that usually sit beside them. One size everywhere, and the accent
+   colour so a checked box matches the theme. Plain CSS (not @layer) so it
+   overrides the base layer regardless of import order. */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ── Touch sizing for the shared button primitives ──────────────────────────
+ * `.btn-sm` is 30px and `.btn-icon` is 34px. Those are deliberate on a desktop
+ * — an operator scanning a 45-row provider grid wants density — but on a phone
+ * they are below the size a fingertip reliably hits, and they appear on every
+ * page: filter chips, row actions, dialog footers.
+ *
+ * Raising them at the primitive fixes all of those at once. `min-height`
+ * rather than `height` so a button whose label wraps can still grow, and the
+ * padding is left alone so a wide label is unaffected.
+ */
+@media (max-width: 1024px), (pointer: coarse) {
+  .btn-sm {
+    height: auto;
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  .btn-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* A button that only carries an icon inside a table row keeps its compact
+     look but gains the vertical target, so rows do not double in height. */
+  .data-table .btn-sm {
+    min-height: 44px;
+  }
+}
+
+/* A switch is 42x24 — a size that reads correctly as an iOS-style control but
+   is under half the recommended touch height. Growing the track itself would
+   make every settings row look inflated, so the *hit area* grows instead: a
+   transparent pseudo-element extends the button's clickable box to 44px
+   without moving anything on screen. */
+@media (max-width: 1024px), (pointer: coarse) {
+  .switch-track {
+    position: relative;
+  }
+
+  .switch-track::after {
+    content: "";
+    position: absolute;
+    inset: 50% 0 auto;
+    height: 44px;
+    transform: translateY(-50%);
+    /* Wider than the track so a thumb landing slightly off still registers. */
+    left: -6px;
+    right: -6px;
+  }
+
+  /* The row keeps its own layout; only the interactive box grew. */
+  .switch-container {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .radix-select-trigger {
+    min-height: 44px;
+  }
+}
+
+/* ── Form controls on touch ─────────────────────────────────────────────────
+ * The settings page alone had fifteen undersized controls: text inputs at
+ * 38px, the password reveal button at 20px, and bare checkboxes at 16px. None
+ * of them are decorative — they are how an operator enters credentials.
+ *
+ * Inputs grow to 44px, which also lifts the label spacing around them. The
+ * reveal button keeps its icon size and gains an invisible 44px hit box, so
+ * the field does not visibly change. Checkboxes grow outright: 16px is not a
+ * target, it is a speck.
+ */
+@media (max-width: 1024px), (pointer: coarse) {
+  .form-input,
+  .input,
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="url"],
+  input[type="number"],
+  input[type="search"],
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  .input-reveal-button {
+    /* The icon stays where it was; only the tappable box grows. */
+    min-width: 44px;
+    min-height: 44px;
+    right: 0 !important;
+    justify-content: center;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* A checkbox is 24px of visible control; the label beside it is part of the
+     target, so the row gets the full height. */
+  .checkbox-row,
+  .form-check {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}

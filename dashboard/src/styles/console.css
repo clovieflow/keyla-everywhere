@@ -1,0 +1,4726 @@
+/* ===== overlays ===== */
+/* Route transitions, drawers, dialogs, OAuth modals, and form layouts. */
+/* Animations */
+@keyframes motion-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popout-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dialog-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dialog-panel-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Saved-reset credit line on a quota card: a swept highlight (shimmer) plus a
+   soft pulse, so an available reset reads as "energized" rather than static. */
+@keyframes reset-credit-sheen {
+  0% {
+    background-position: -160% 0;
+  }
+  100% {
+    background-position: 260% 0;
+  }
+}
+
+@keyframes reset-credit-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--status-success) 55%, transparent));
+  }
+}
+
+.reset-credit-live {
+  display: inline-block;
+  background: linear-gradient(
+    100deg,
+    var(--text-tertiary) 32%,
+    var(--status-success) 50%,
+    var(--text-tertiary) 68%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    reset-credit-sheen 2.4s linear infinite,
+    reset-credit-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reset-credit-live {
+    animation: none;
+    color: var(--status-success);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+.route-enter {
+  animation: motion-route-in var(--dur-macro) var(--ease-spring) both;
+  width: 100%;
+  min-width: 0;
+}
+
+.card-interactive {
+  transition:
+    transform var(--dur-micro) var(--ease-spring),
+    border-color var(--dur-micro) var(--ease-spring),
+    box-shadow var(--dur-micro) var(--ease-spring);
+}
+
+.card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+.motion-fade {
+  transition:
+    opacity var(--dur-micro) var(--ease-spring),
+    background-color var(--dur-micro) var(--ease-spring),
+    border-color var(--dur-micro) var(--ease-spring),
+    color var(--dur-micro) var(--ease-spring);
+}
+
+.meter-fill {
+  transition: width var(--dur-macro) var(--ease-spring);
+}
+
+.popout-enter {
+  animation: popout-in var(--dur-micro) var(--ease-spring) both;
+  transform-origin: top right;
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  animation: dialog-overlay-in var(--dur-macro) var(--ease-spring) both;
+}
+
+.dialog-overlay.closing {
+  animation: dialog-overlay-out var(--dur-micro) var(--ease-spring) both;
+  pointer-events: none;
+}
+
+.dialog-panel,
+.modal-window {
+  width: min(var(--dialog-width, 520px), calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 70px -15px rgba(0, 0, 0, 0.65),
+    0 0 0 1px var(--inner-border);
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: dialog-panel-in var(--dur-macro) var(--ease-spring) both;
+}
+
+.dialog-panel.expanded,
+.modal-window.expanded {
+  width: min(1160px, calc(100vw - 32px));
+}
+
+.dialog-panel.closing,
+.modal-window.closing {
+  animation: dialog-panel-out var(--dur-micro) var(--ease-spring) both;
+}
+
+/* Small screens: dialogs become near-full-viewport bottom sheets so form
+   grids and tables never clip horizontally. Short panels (confirm dialogs) still center instead of hugging edges. */
+@media (max-width: 640px) {
+  .dialog-overlay {
+    align-items: stretch;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .dialog-panel,
+  .modal-window {
+    margin: auto 0 0;
+    max-height: calc(100dvh - 24px);
+  }
+  .dialog-panel.expanded,
+  .modal-window.expanded {
+    width: min(1160px, calc(100vw - 24px));
+  }
+}
+
+/* Right slide-in drawer (bottom sheet on small screens), ported from 21.beta. */
+@keyframes drawer-panel-in {
+  from {
+    transform: translateX(105%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  animation: dialog-overlay-in 180ms var(--ease-spring) both;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+.drawer-panel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: auto;
+  width: min(448px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    0 24px 70px -15px rgba(0, 0, 0, 0.65),
+    0 0 0 1px var(--inner-border);
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+  animation: drawer-panel-in 220ms var(--ease-spring) both;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px 10px;
+}
+
+.drawer-title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.drawer-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.drawer-body {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+}
+
+@media (max-width: 640px) {
+  .drawer-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+}
+.modal-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--inner-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.window-traffic-lights-spacer {
+  width: 58px;
+  flex-shrink: 0;
+}
+
+.traffic-light {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--dur-micro) ease;
+}
+
+.traffic-light:hover {
+  transform: scale(1.12);
+}
+
+.traffic-light:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.traffic-light-close {
+  background: #ff5f57;
+  color: #7a1c17;
+}
+
+.traffic-light-minimize {
+  background: #febc2e;
+  color: #6d4b00;
+}
+
+.traffic-light-expand {
+  background: #28c840;
+  color: #0b5a22;
+}
+
+.modal-body {
+  padding: 16px 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Pinned action row below the scrollable modal body. */
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--inner-border);
+  flex-shrink: 0;
+}
+
+/* OAuth connect dialog — shared layout for the browser and device flows. */
+.oauth-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+.oauth-status-text {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.oauth-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.oauth-step-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.oauth-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.oauth-url {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--inner-border);
+}
+
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.oauth-divider::before,
+.oauth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--inner-border);
+}
+
+.oauth-code-card {
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+}
+
+.oauth-code-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.oauth-code-value {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+}
+
+.oauth-textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--inner-border);
+  background: var(--input-bg);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.oauth-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.modal-form-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.modal-form-section-wide,
+.modal-form-actions {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .modal-form-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .modal-form-section-wide,
+  .modal-form-actions {
+    grid-column: auto;
+  }
+}
+
+/*
+ * API key create/edit form.
+ *
+ * Sections are cards that pack into a balanced two-column flow: CSS columns
+ * fill the left column and spill into the right, so the layout stays compact
+ * without the ragged blank space a fixed card-to-column grid leaves when two
+ * cards of different heights share a row (and it re-balances when a card such
+ * as the popup editor grows). Cards never split across columns.
+ */
+.api-key-form-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+/* ===== sortable lists ===== */
+/* Rows that can be dragged into a new order (API credentials, combos,
+   aliases). The left rail carries the drag handle and the 1-based position;
+   the position is presentation only and never leaves the browser as data. */
+.sortable-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+  border-radius: 12px;
+  transition: opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.sortable-row[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.sortable-row[data-drop-target="true"] {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+.sortable-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding-top: 12px;
+  cursor: grab;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.sortable-row:active .sortable-rail {
+  cursor: grabbing;
+}
+
+.sortable-grip {
+  opacity: 0.55;
+}
+
+.sortable-row:hover .sortable-grip {
+  opacity: 1;
+}
+
+.sortable-index {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.sortable-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ===== API credential rows =====
+   One credential per row: identity on the left, its controls on the right. The
+   list is a container so the controls can collapse and drop to their own line
+   based on the width the row actually has — the sidebar and page padding are
+   not part of that, which a viewport breakpoint would get wrong. */
+.api-key-credentials {
+  container-type: inline-size;
+  container-name: api-key-credentials;
+}
+
+.api-key-credential {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+/* A 260px basis is enough for a name, its badges and the key prefix. Anything
+   narrower and the controls wrap to the next line instead of squeezing this
+   block to nothing. */
+.api-key-credential-identity {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.api-key-credential-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.api-key-credential-title strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.api-key-credential-prefix {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-key-credential-created {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.api-key-credential-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.api-key-credential-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Below ~560px of row width the controls cannot share a line with the identity
+   block without squeezing it to nothing — which is how the name and the enable
+   toggle ended up drawn on top of each other on a phone, with the trailing
+   control cut off past the card edge. Stack them instead, and collapse the
+   labeled buttons to square icons so all of them fit. */
+@container api-key-credentials (max-width: 560px) {
+  .api-key-credential {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .api-key-credential-actions {
+    justify-content: flex-start;
+  }
+
+  /* Eight limits stacked one per line made the card several screens tall; two
+     columns keep the same information at half the height. */
+  .api-key-credential-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+  }
+
+  .btn-labeled {
+    width: 30px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+
+  .btn-labeled .btn-label {
+    display: none;
+  }
+}
+
+.api-key-form-columns {
+  columns: 2;
+  column-gap: 12px;
+  min-width: 0;
+}
+
+.api-key-form-columns > * {
+  break-inside: avoid;
+  margin: 0 0 12px;
+}
+
+.api-key-form-section-wide,
+.modal-form-actions {
+  grid-column: 1 / -1;
+}
+
+.api-key-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--inner-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.api-key-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+}
+
+.api-key-form-field-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* Header row: title/description on the left, the enable switch on the right. */
+.api-key-popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Image column on the left, fields on the right; stacks on narrow screens. */
+.api-key-popup-body {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+.api-key-popup-image {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.api-key-popup-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.api-key-popup-fields .form-group {
+  gap: 4px;
+}
+
+.api-key-popup-footnote {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* Clear, non-tiny preview filling the left column. */
+.api-key-popup-preview {
+  width: 100%;
+  height: 132px;
+  object-fit: cover;
+  border: 1px solid var(--inner-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  display: block;
+}
+
+.api-key-popup-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  border-style: dashed;
+}
+
+.api-key-popup-remove {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  align-self: flex-start;
+}
+
+@media (max-width: 720px) {
+  .api-key-popup-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .api-key-popup-preview {
+    height: 160px;
+  }
+}
+
+/* File picker matches the height and radius of every other form control. */
+.form-file-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 4px 0 0;
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color var(--dur-micro) ease;
+}
+
+.form-file-input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.form-file-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.form-file-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-file-input::file-selector-button {
+  height: 100%;
+  margin-right: 8px;
+  padding: 0 10px;
+  border: none;
+  border-right: 1px solid var(--inner-border);
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: inherit;
+}
+
+.form-file-input::file-selector-button:hover {
+  background: var(--surface-hover);
+}
+
+@media (max-width: 720px) {
+  .api-key-form-columns {
+    columns: 1;
+  }
+
+  .api-key-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .api-key-form-field-wide,
+  .api-key-form-section-wide,
+  .modal-form-actions {
+    grid-column: auto;
+  }
+}
+
+/* ===== shell ===== */
+/* App shell, sidebar, navigation, topbar, main column, and footer. */
+/* ==========================================================================
+   App Shell Layout — True OS Desktop Split Screen
+   ========================================================================== */
+.app-shell-root {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 1560px;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 16px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .app-shell-root {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+    gap: 12px;
+  }
+}
+
+/* Sidebar Rail — 100% Pinned to left column, independent scroll inside */
+.app-sidebar {
+  width: 272px;
+  min-width: 272px;
+  max-width: 272px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius-sidebar);
+  padding: 18px 14px;
+  overflow-y: auto;
+  z-index: 30;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .app-sidebar {
+    position: fixed;
+    top: 12px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 70;
+    width: min(280px, calc(100vw - 24px));
+    min-width: 0;
+    max-width: 280px;
+    height: auto;
+    max-height: none;
+    transform: translateX(calc(-100% - 24px));
+    transition: transform 280ms var(--ease-spring);
+    box-shadow: var(--shadow-popout);
+  }
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+}
+
+.mobile-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 0;
+  cursor: default;
+  animation: dialog-overlay-in 180ms var(--ease-spring) both;
+}
+
+.mobile-scrim.closing {
+  animation: dialog-overlay-out 180ms var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Sidebar Brand Header */
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 16px 8px;
+  border-bottom: 1px solid var(--inner-border);
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 16px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.brand-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+/* Navigation Groups */
+.nav-group-section {
+  margin-top: 14px;
+}
+
+.nav-group-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  padding: 4px 10px 6px;
+}
+
+
+.nav-items-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-active-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 11px;
+  border: 1px solid var(--inner-border);
+  background: var(--active-pill);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition:
+    transform var(--dur-macro) var(--ease-spring),
+    height var(--dur-macro) var(--ease-spring),
+    opacity var(--dur-macro) var(--ease-spring);
+  pointer-events: none;
+}
+
+.nav-link-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    color var(--dur-micro) var(--ease-spring),
+    transform var(--dur-micro) var(--ease-spring);
+}
+
+.nav-link-item:hover {
+  color: var(--text-primary);
+}
+
+.nav-link-item.active {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nav-link-item:active {
+  transform: scale(0.98);
+}
+
+.nav-link-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.nav-link-badge {
+  margin-left: auto;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+}
+
+/* Sidebar Footer User Card */
+.sidebar-user-card {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--inner-border);
+}
+
+.user-card-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 13px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--accent), var(--gold, #d1ad79));
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   Main Content Column — THE ONE THAT SCROLLS
+   ========================================================================== */
+.app-main-column {
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 20px;
+  box-sizing: border-box;
+}
+
+.dashboard-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Toolbar pinned under the app topbar. `.app-main-column` is the scroller, so
+   `top` is the topbar's own height. The opaque surface + shadow keeps cards
+   legible as they scroll beneath it. */
+.page-toolbar-sticky {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 20;
+}
+
+/* Desktop Header Topbar */
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--inner-border);
+  /* The topbar is the one surface content scrolls under, so it takes the
+     deepest blur in the console — it has to stay legible over a dense table. */
+  --glass-depth: 2;
+  box-shadow: var(--shadow-card);
+}
+@media (max-width: 1024px) {
+  .app-topbar {
+    border-radius: 14px;
+  }
+}
+
+.topbar-menu-btn {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--inner-border);
+  background: var(--hover);
+  color: var(--text-primary);
+  place-items: center;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .topbar-menu-btn {
+    display: grid;
+  }
+}
+
+.topbar-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.topbar-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.topbar-subtitle {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-button {
+  height: 38px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--inner-border);
+  background: var(--hover);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all var(--dur-micro) var(--ease-spring);
+}
+
+.topbar-button:hover {
+  background: var(--active-pill);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.topbar-icon-button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--inner-border);
+  background: var(--hover);
+  color: var(--text-secondary);
+  transition: all var(--dur-micro) var(--ease-spring);
+}
+
+.topbar-icon-button:hover {
+  background: var(--active-pill);
+  color: var(--text-primary);
+}
+
+.topbar-icon-button:active {
+  transform: scale(0.92);
+}
+
+@media (max-width: 640px) {
+  .topbar-button span,
+  .topbar-button kbd {
+    display: none;
+  }
+  .topbar-button {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  .topbar-title {
+    font-size: 14.5px;
+  }
+  .topbar-subtitle {
+    display: none;
+  }
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .section-header-action {
+    width: 100%;
+  }
+  .section-header-action button {
+    width: 100%;
+  }
+}
+
+/* Desktop Taskbar / Footer Clock */
+.app-footer {
+  margin-top: auto;
+  margin-bottom: 8px;
+  border-radius: 18px;
+  padding: 12px 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  width: 100%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.footer-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.status-indicator-dot.online {
+  background: var(--green);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--green) 60%, transparent);
+}
+
+.status-indicator-dot.offline {
+  background: var(--red);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--red) 60%, transparent);
+}
+
+.status-indicator-dot.pulse {
+  animation: pulse-subtle 1.8s infinite;
+}
+/* ===== overview ===== */
+/* Overview metrics, resource widgets, providers, and panel surfaces. */
+/* Metric / Stat Cards Grid */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* `auto-fit` with a 160px floor rather than a fixed column count: the grid fits
+   as many cards per row as the width allows and drops to one column only when
+   even two would not fit. A phone gets two compact cards side by side instead of
+   a stack of full-width boxes, and a 320px screen falls back to one on its own.
+   The 160px floor is safe because `.stat-card-value` shrinks to fit its own card
+   — a floor with a fixed-size value is what used to force the page wider than
+   the screen. */
+@media (max-width: 600px) {
+  .metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+  }
+}
+
+.stat-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  /* The value below is sized against this width, so a long token count shrinks
+     to fit instead of spilling out of the card. */
+  container-type: inline-size;
+  transition:
+    transform var(--dur-micro) var(--ease-spring),
+    box-shadow var(--dur-micro) var(--ease-spring),
+    border-color var(--dur-micro) ease;
+}
+
+/* The headline figure.
+ *
+ * A raw token count is thirteen characters — `1.234.567.890` — and at a fixed
+ * 20px in the mono face that is wider than the card's own minimum. It used to
+ * overflow the card and drag the whole page sideways, which is what made the
+ * Usage page scrollable on a phone once a tenant passed a billion tokens.
+ *
+ * Sized in `cqw` so the figure tracks the card rather than the viewport: wide
+ * cards keep the full 20px, a narrow one steps down until the number fits. The
+ * alternative — truncating it — would hide the digits the card exists to show.
+ */
+.stat-card-value {
+  font-family: var(--font-mono);
+  font-size: clamp(12px, 8.5cqw, 20px);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 2px 0 0 0;
+  overflow-wrap: anywhere;
+}
+/* Named container for the proxy table: the labeled action buttons in
+ * `base.css` collapse to square icon buttons against this width, so a narrow
+ * row degrades gracefully instead of overflowing the Actions column.
+ *
+ * Deliberately NOT a scroller — the table's own container scrolls (via
+ * `maxHeight`), which is what keeps the header row pinned while the rows move. */
+.proxy-table-scroll {
+  container-type: inline-size;
+  container-name: rule-row;
+}
+/* Mobile proxy cards: the table's columns (address, load, actions) cannot fit
+ * a phone viewport, so the same pools render as stacked cards instead. The
+ * table stays the desktop surface; both read the same derived view, so they
+ * cannot disagree. */
+.proxy-cards {
+  display: none;
+}
+@media (max-width: 720px) {
+  .proxy-table-scroll {
+    display: none;
+  }
+  .proxy-cards {
+    display: grid;
+    /* Phones stack one card per row; wider tablets fit two side by side. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 12px;
+  }
+}
+
+.stat-card-detail {
+  /* Details can name a pool; a long label must not stretch the card or wrap
+   * onto a second line and change the row height. */
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-soft);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
+}
+
+/* Health Card & Overview Resource Widgets */
+.health-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1300px) {
+  .health-resource-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .health-resource-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .provider-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .provider-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.provider-card {
+  min-width: 0;
+}
+
+.provider-version-badge {
+  position: absolute;
+  top: -9px;
+  left: 10px;
+  right: auto;
+  z-index: 4;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  font-size: 9px;
+  line-height: 1.15;
+  box-shadow: var(--shadow-card);
+}
+
+
+@media (max-width: 640px) {
+  .provider-version-badge {
+    left: 8px;
+    right: auto;
+    max-width: calc(100% - 16px);
+  }
+}
+
+
+.health-card-resource {
+  height: 100%;
+  min-height: 218px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.info-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.info-tooltip-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  width: 200px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-secondary);
+  pointer-events: none;
+  white-space: normal;
+}
+
+.info-tooltip-wrap:hover .info-tooltip-popup,
+.info-tooltip-wrap:focus-within .info-tooltip-popup {
+  display: block;
+}
+.overview-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.overview-card-primary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.overview-card-primary-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.overview-card-primary-value-sm {
+  font-size: 17px;
+}
+
+.overview-card-primary-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.overview-card-summary {
+  font-size: 9.5px;
+  line-height: 1.3;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  white-space: pre-line;
+}
+
+.overview-card-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.overview-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.overview-mini {
+  min-width: 0;
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  padding: 6px 8px;
+}
+
+.overview-mini-label {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.overview-mini-value {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.overview-mini-caption {
+  margin-top: 2px;
+  font-size: 8.5px;
+  color: var(--text-tertiary);
+}
+
+.overview-bar-rail {
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.overview-bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--track);
+  display: flex;
+  gap: 1px;
+}
+
+.overview-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+  transition: width 400ms ease;
+}
+
+.overview-bar-fill--accent {
+  background: var(--accent);
+}
+.overview-bar-fill--orange {
+  background: var(--orange);
+}
+.overview-bar-fill--green {
+  background: var(--green);
+}
+.overview-bar-fill--blue {
+  background: var(--teal);
+}
+.overview-bar-fill--purple {
+  background: var(--purple);
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.section-header-text h1,
+.section-header-text h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.section-header-text p {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.usage-status-filters {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.usage-status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 21px;
+  padding: 1px 6px;
+  border: 1px solid var(--inner-border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: 600 9.5px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+.usage-status-filter:hover,
+.usage-status-filter[aria-pressed="true"] {
+  border-color: var(--status-color);
+  background: color-mix(in srgb, var(--status-color) 12%, var(--surface-1));
+  color: var(--status-color);
+}
+
+.usage-status-filter-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Separates the status label from its count (`200 OK · 6,689`). Drawn as
+   generated content so the button's accessible name stays "200 OK 6,689"
+   from its text nodes, and the `aria-label` stays the authoritative one. */
+.usage-status-filter-count::before {
+  content: "·";
+  margin-right: 5px;
+  opacity: 0.55;
+}
+/* Tone is derived from the code (`httpStatusTone`), not from an enumerated
+   list of statuses, so a status the gateway newly returns is styled correctly
+   without touching this file. */
+.usage-status-filter[data-tone="ok"] {
+  --status-color: var(--green);
+}
+
+.usage-status-filter[data-tone="warn"] {
+  --status-color: var(--orange);
+}
+
+.usage-status-filter[data-tone="err"] {
+  --status-color: var(--red);
+}
+.radix-slider-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 20px;
+  touch-action: none;
+}
+
+.radix-slider-track {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--inner-border);
+}
+
+.radix-slider-range {
+  position: absolute;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.radix-slider-thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface-1);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  cursor: grab;
+}
+
+.radix-slider-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.radix-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-micro) ease,
+    background-color var(--dur-micro) ease;
+}
+
+.radix-select-trigger:hover {
+  border-color: var(--border-strong);
+}
+
+.radix-select-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.radix-select-content {
+  z-index: 9999;
+  min-width: var(--radix-select-trigger-width);
+  max-height: var(--radix-select-content-available-height, 280px);
+  overflow: hidden auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 20px 48px -8px rgba(0, 0, 0, 0.45),
+    0 0 0 1px var(--inner-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 5px;
+  box-sizing: border-box;
+}
+
+.radix-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--dur-micro) ease;
+  user-select: none;
+}
+
+.radix-select-item[data-highlighted] {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.radix-select-item[data-state="checked"] {
+  font-weight: 600;
+}
+
+.radix-select-item[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.radix-select-indicator {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+}
+
+.radix-select-trigger svg {
+  color: var(--text-tertiary);
+  transition: transform var(--dur-micro) ease;
+}
+
+.radix-select-trigger[data-state="open"] svg {
+  transform: rotate(180deg);
+}
+.form-range {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .two-column-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ===== layout ===== */
+/* Layout Columns */
+.two-column-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* A grid item defaults to `min-width: auto`, so a panel refuses to shrink below
+   the widest unbreakable thing inside it. The breakdown rows carry counts and
+   token figures in `flexShrink: 0` spans, and their combined min-content width
+   exceeds the column — the panel kept that width and the page scrolled sideways
+   in the band where two columns still apply but neither is wide enough.
+   `min-width: 0` lets the panel shrink and hands the overflow to its own
+   scroller. Same guard `.cl-op-col > *` carries on the Overview page. */
+.two-column-grid > * {
+  min-width: 0;
+}
+
+
+/* Settings keeps related controls compact: security/privacy share the first
+   row at equal height, while the wider backup surface spans the full grid
+   below. */
+.settings-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-column > :last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 820px) {
+  .settings-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-column > :last-child {
+    grid-column: auto;
+  }
+}
+
+.backup-section-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+}
+
+.backup-section-options legend {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.backup-section-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.backup-section-option:hover,
+.backup-section-option:focus-within {
+  border-color: var(--border-strong);
+  background: var(--hover);
+}
+
+.backup-section-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@media (max-width: 560px) {
+  .backup-section-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One panel in a `two-column-grid` claims the whole row. Used by the Usage
+   page's per-panel "widen" control, which is how a side-by-side panel gets the
+   full width without the layout having to change shape. */
+.grid-span-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .two-column-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* ===== console-log ===== */
+/* Console Log rows, toolbar, filters, and provider routing pins. */
+/* Console Log — structured request rows plus plain server output. */
+.console-log-page {
+  container-type: inline-size;
+  container-name: console-log;
+}
+
+.console-log-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  /* Fixed near-black in BOTH themes: the terminal is its own surface, so its
+     text colours are measured against #050606, not the page tokens. */
+  background: #050606;
+  color: #d5cec6;
+}
+
+.console-log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 16px;
+  min-height: 21px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.console-log-row--warn {
+  background: rgba(255, 168, 0, 0.05);
+}
+
+.console-log-row--error {
+  background: rgba(255, 64, 64, 0.07);
+}
+
+.console-log-row:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+/* A freshly arrived line gets a brief neutral flash — no colour, so the
+   highlight never competes with the severity cues. */
+.console-log-row.is-new {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.console-log-time {
+  flex: 0 0 auto;
+  color: #98a29e;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-log-level {
+  flex: 0 0 auto;
+  width: 26px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: left;
+}
+
+.console-log-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9aa5a1;
+}
+
+/* ---- structured request fields ---- */
+.console-log-method {
+  flex: 0 0 auto;
+  min-width: 38px;
+  color: #98a29e;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.console-log-path {
+  flex: 0 0 auto;
+  color: #d7e2de;
+}
+
+.console-log-status {
+  flex: 0 0 auto;
+  min-width: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Only a failing status is coloured; a 2xx stays neutral so the column does
+   not read as a wall of green. */
+.console-log-status--ok {
+  color: #98a29e;
+}
+
+.console-log-status--warn {
+  color: var(--orange);
+  font-weight: 600;
+}
+
+.console-log-status--err {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.console-log-status--pending {
+  color: #98a29e;
+  letter-spacing: 0.1em;
+}
+
+.console-log-route {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9ecfbf;
+}
+
+.console-log-account {
+  flex: 0 0 auto;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #c8a9a2;
+}
+
+.console-log-ip {
+  flex: 0 0 auto;
+  color: #8a9390;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-log-duration {
+  flex: 0 0 auto;
+  color: #8a9390;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-log-tokens {
+  flex: 0 0 auto;
+  color: #e0b97e;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-log-errmsg {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ff8080;
+}
+
+
+.console-log-id {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #4d5654;
+  font-size: 10px;
+}
+
+.console-log-pool {
+  flex: 0 0 auto;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9db8d0;
+}
+
+.console-log-agent {
+  flex: 0 0 auto;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #8a9390;
+}
+
+/* The full request id is what you paste into a trace search, so it is worth the
+   width — but it is the last thing on the line, and the first to go when there
+   is no room. */
+.console-log-request-id {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #4d5654;
+  font-size: 10px;
+  direction: rtl;
+  text-align: left;
+}
+
+/* ── Narrow screens: wrap the row instead of hiding its tail ────────────────
+   A log line is `nowrap` with `overflow: hidden`, which on a phone meant the
+   model id was truncated (`fetra/c…`) with no way to see the rest. The row now
+   wraps and the fields keep their own width, so the same line reads as two
+   lines rather than as a line that lost its end. It stays a log — no cards, no
+   borders — because the value here is scanning a column of aligned lines. */
+@media (max-width: 720px) {
+  .console-log-row {
+    flex-wrap: wrap;
+    white-space: normal;
+    row-gap: 1px;
+    padding: 4px 12px;
+  }
+
+  .console-log-row > * {
+    white-space: nowrap;
+  }
+
+  /* The message is the one field that should wrap: it is prose, and truncating
+     it is what made an error unreadable on a phone. */
+  .console-log-msg,
+  .console-log-errmsg {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    flex: 1 1 100%;
+  }
+
+  .console-log-route {
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+
+  .console-log-account,
+  .console-log-pool,
+  .console-log-agent {
+    max-width: none;
+  }
+
+  /* The request id no longer needs to hide: the row has a second line now. */
+  .console-log-request-id {
+    flex: 0 0 auto;
+    direction: ltr;
+    font-size: 9.5px;
+  }
+}
+
+.console-log-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-top: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.console-log-footer-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.console-log-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.console-log-filter {
+  appearance: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: 600 11px/1 var(--font-sans);
+  cursor: pointer;
+}
+
+.console-log-filter:hover,
+.console-log-filter.is-active {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+@container console-log (max-width: 900px) {
+  /* Secondary fields drop before the primary ones: the row must stay readable
+     at narrow widths instead of overflowing into a scrollbar. */
+  .console-log-ip,
+  .console-log-id {
+    display: none;
+  }
+}
+
+@container console-log (max-width: 720px) {
+  .console-log-account,
+  .console-log-tokens {
+    display: none;
+  }
+}
+
+@container console-log (max-width: 620px) {
+  .console-log-row {
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+  }
+
+  .console-log-time {
+    flex: 0 0 auto;
+  }
+
+  .console-log-method,
+  .console-log-duration {
+    display: none;
+  }
+
+  .console-log-msg {
+    min-width: 0;
+  }
+
+  .console-log-filters {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+.console-log-filter-count {
+  margin-left: 5px;
+  color: inherit;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-log-clear {
+  margin-left: 6px;
+  color: var(--red);
+}
+
+.console-log-clear:hover {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.console-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--inner-border);
+}
+
+.console-log-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.console-log-search {
+  position: relative;
+  width: min(280px, 28vw);
+}
+
+.console-log-search > svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.console-log-search input {
+  width: 100%;
+  padding-left: 30px;
+}
+
+.console-log-clear-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.console-log-clear-icon:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+@container console-log (max-width: 720px) {
+  .console-log-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .console-log-tools {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .console-log-search {
+    flex: 1;
+    width: auto;
+  }
+}
+
+.routing-sticky-set {
+  justify-self: start;
+  min-width: 0;
+  width: 100%;
+  max-width: 148px;
+}
+
+.routing-sticky-set input[type="number"] {
+  width: 72px;
+}
+
+@media (max-width: 680px) {
+  .routing-sticky-set {
+    max-width: none;
+  }
+}
+/* ===== accounts ===== */
+/* Provider account toolbar, compact rows, selection, and container behavior. */
+/* Account list — compact responsive rows (replaces the account data table).
+   Each row is a card: checkbox · name/status block · action icons. On narrow
+   widths the actions wrap onto their own line so nothing is clipped. */
+.account-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  padding-left: 14px;
+  border-left: 1px solid var(--inner-border);
+  flex-wrap: wrap;
+}
+
+.account-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.account-sort-dir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 8px;
+  /* Matches the `sm` Select beside it; a shorter button left the row ragged. */
+  height: 32px;
+  cursor: pointer;
+}
+
+.account-sort-dir:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.account-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.account-bulkbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 2px;
+  container-type: inline-size;
+  container-name: account-list;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.account-row:hover {
+  background: var(--hover);
+}
+
+.account-row[data-selected="true"] {
+  border-color: var(--accent);
+}
+
+.account-row-check {
+  display: flex;
+  align-items: center;
+}
+
+.account-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.account-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account-row-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-row-rename {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.account-row-rename:hover {
+  background: var(--inner-border);
+  color: var(--text-primary);
+}
+
+.account-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.account-row-detail {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Below ~560px of row width, drop the actions to their own line and let the
+   name/status block span the full width. Container query (not a viewport
+   breakpoint) so it tracks the actual list width inside the card. */
+@container account-list (max-width: 560px) {
+  .account-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .account-row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+/* ===== model-lab ===== */
+/* Model Lab treatment for the console playground. */
+/* Model Lab — Grok-calm chatbot treatment */
+@keyframes mlab-msg-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mlab-think-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes mlab-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes mlab-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.mlab-msg-in {
+  animation: mlab-msg-in 150ms ease-out both;
+}
+
+.mlab-thinking-live {
+  background: linear-gradient(
+    100deg,
+    var(--text-tertiary) 30%,
+    var(--text-primary) 50%,
+    var(--text-tertiary) 70%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: mlab-think-shimmer 1.6s linear infinite;
+}
+
+.mlab-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--status-success);
+  animation: mlab-live-pulse 1.4s ease-in-out infinite;
+}
+
+.mlab-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--text-tertiary);
+  animation: mlab-typing-bounce 1.2s ease-in-out infinite;
+}
+
+.mlab-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.mlab-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.mlab-composer {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  transition: none;
+}
+
+.mlab-composer:focus-within {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.mlab-send-btn {
+  transition:
+    transform 150ms var(--ease-spring),
+    opacity 150ms ease,
+    background 150ms ease;
+}
+
+.mlab-send-btn:active {
+  transform: scale(0.92);
+}
+
+.mlab-tool-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .mlab-wide {
+    max-width: 100% !important;
+  }
+}
+/* ===== share ===== */
+/* Owner-side share dialog: the stable link row, the recipient table, and the
+   expanded per-recipient detail. Kept dense so the whole modal — link, section
+   header, and table — fits without the operator scrolling past empty space. */
+
+.share-modal {
+  display: grid;
+  gap: 12px;
+  /* A grid/flex item defaults to `min-width: auto`, so the panel would grow to
+     fit the full link instead of letting `code` truncate. Resetting it on every
+     level of the chain is what keeps a long URL from scrolling the whole modal. */
+  min-width: 0;
+}
+
+.share-modal > section {
+  min-width: 0;
+}
+
+/* One link, one row: icon, URL, copy, regenerate. Mirrors the public share
+   page's endpoint field: the container may shrink, `code` is what truncates,
+   and the actions hold their width. */
+.share-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}
+
+/* The glyph and the actions keep their size; only the URL gives way. */
+.share-link-row > svg,
+.share-link-row > button,
+.share-link-row > .btn {
+  flex: 0 0 auto;
+}
+
+.share-link-row code {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-link-empty {
+  flex: 1 1 auto;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.share-section {
+  display: grid;
+  gap: 6px;
+}
+
+.share-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.share-section-head strong {
+  font-size: 12px;
+}
+
+/* Personal-key usage: labelled figures, wrapping instead of a wide table. */
+.share-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.share-stat {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.share-stat dt {
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.share-stat dd {
+  margin: 2px 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.share-table-container {
+  max-height: 46vh;
+}
+
+/* Lifetime-budget bar. Sits inside `.share-stats`, a wrapping flex row, so it
+   takes the full width and pushes the remaining figures onto the next line. */
+.share-budget {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.share-budget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.share-budget-figures {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.share-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--inner-border);
+  overflow: hidden;
+}
+
+.share-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--green);
+  transition: width var(--dur-micro) var(--ease-spring);
+}
+
+/* At or past the budget the fill turns red: the percentage caps at 100, so the
+   colour is the only thing distinguishing "full" from "over". */
+.share-bar-fill--exhausted {
+  background: var(--red);
+}
+
+/* Remaining-quota pill beside the figures: the same green/orange/red ladder
+   as the quota page, drawn as an outlined chip so it reads as a status, not
+   a second set of figures. */
+.share-quota-pill {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: normal;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+/* Active-recipient count. Pushed away from the heading by the auto margin so it
+   reads as a figure about the list, not part of the section title. */
+.share-active-count {
+  margin-left: auto;
+  margin-right: 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.share-table {
+  font-size: 12px;
+}
+
+.share-table th,
+.share-table td {
+  padding: 6px 8px;
+}
+
+.share-col-toggle {
+  width: 26px;
+}
+
+.share-col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.share-expand-toggle {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.share-expand-toggle:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.share-recipient-context {
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+/* Expanded recipient: two dense tables, no nested cards. */
+.share-child-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--inner-border);
+  background: var(--surface-1);
+}
+
+.share-detail-heading {
+  margin-bottom: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-detail-empty {
+  padding: 6px 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .share-link-row {
+    flex-wrap: wrap;
+  }
+  .share-child-detail {
+    padding: 10px;
+  }
+}
+.quota-window-row {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+  min-width: 0;
+}
+
+.quota-window-heading {
+  min-width: 0;
+}
+
+.quota-window-bar {
+  min-width: 0;
+  width: 100%;
+}
+
+.quota-window-remaining {
+  white-space: nowrap;
+}
+
+.quota-window-details {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.quota-window-usage {
+  margin-right: auto;
+}
+
+.quota-window-reset {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .quota-window-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 5px;
+    column-gap: 8px;
+  }
+
+  .quota-window-heading {
+    grid-column: 1;
+  }
+
+  .quota-window-remaining {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .quota-window-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .quota-window-details {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .quota-window-usage {
+    min-width: 0;
+  }
+
+  .quota-window-reset {
+    margin-left: auto;
+  }
+
+  .quota-window-pagination {
+    flex-wrap: wrap;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONSOLE SURFACES — onboarding, health, simulator, help, about
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Onboarding checklist ───────────────────────────────────────────────────
+   A vertical timeline: the connecting rail carries progress, so the operator
+   reads "how far along am I" before reading any individual step. */
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.onboarding-progress-rail {
+  flex: 1 1 180px;
+  min-width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--dur-macro) var(--ease-spring);
+}
+
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-step {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--inner-border);
+}
+
+.onboarding-step:last-child {
+  border-bottom: none;
+}
+
+.onboarding-step-marker {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}
+
+.onboarding-step[data-state="done"] .onboarding-step-marker {
+  background: var(--green-soft);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--inner-border));
+  color: var(--green);
+}
+
+.onboarding-step[data-state="active"] .onboarding-step-marker {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.onboarding-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.onboarding-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.onboarding-step-detail {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.onboarding-step-action {
+  align-self: center;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+  /* The action becomes a full-width row, so the step must be allowed to wrap:
+     a 100%-wide item with `flex-shrink: 0` inside a non-wrapping flex row is
+     wider than the row by definition, and pushed the button past the viewport
+     on a 320px screen. */
+  .onboarding-step {
+    flex-wrap: wrap;
+  }
+  .onboarding-step-action {
+    align-self: flex-start;
+    width: 100%;
+  }
+}
+
+/* Code sample block: monospace, horizontally scrollable, and never wider than
+   its card on a 320px viewport. */
+.code-sample {
+  position: relative;
+  border: 1px solid var(--inner-border);
+  border-radius: 12px;
+  background: var(--code-surface);
+  overflow: hidden;
+}
+
+.code-sample-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--inner-border);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.code-sample pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 11.5px;
+  line-height: 1.55;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  white-space: pre;
+  word-break: normal;
+}
+
+/* On a phone a `pre` that scrolls sideways looks like a command that was cut
+   off, because the scrollbar is an overlay the browser hides until you touch
+   it. Wrapping shows the whole line, and a copy button sits directly above it,
+   so wrapping never costs the ability to copy the exact text. */
+@media (max-width: 720px) {
+  .code-sample pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ── Health screen ──────────────────────────────────────────────────────────
+   Grouped status cards. Each group states a fact and, when the fact is bad,
+   what to do about it — a red dot with no remediation is a dead end. */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.health-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--inner-border);
+  font-size: 12px;
+}
+
+.health-fact:last-child {
+  border-bottom: none;
+}
+
+.health-fact-label {
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+/* When the figures beside it were last read.
+ *
+ * The page polls, so the numbers are live — but a live number and a frozen one
+ * look identical on screen. This states the age, and the dot marks a poll in
+ * flight, so a stalled refresh is visible instead of silently stale. */
+.health-freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.health-freshness-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--text-tertiary);
+  flex: 0 0 auto;
+  transition: background-color var(--dur-micro) ease;
+}
+
+.health-freshness-dot.is-live {
+  background: var(--green);
+  animation: health-freshness-pulse 1s ease-in-out infinite;
+}
+
+/* Whether the SSE feed is connected.
+ *
+ * A stream that has silently dropped looks exactly like a gateway with no
+ * traffic: both show a count that is not moving. The dot is the difference. */
+.health-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.health-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--text-tertiary);
+  flex: 0 0 auto;
+}
+
+.health-live.is-live {
+  color: var(--green);
+}
+
+.health-live.is-live .health-live-dot {
+  background: var(--green);
+  animation: health-freshness-pulse 1s ease-in-out infinite;
+}
+
+/* The dot carries the meaning; the pulse is decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .health-live.is-live .health-live-dot {
+    animation: none;
+  }
+}
+
+@keyframes health-freshness-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A pulse is decoration; the timestamp beside it carries the same meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .health-freshness-dot.is-live {
+    animation: none;
+  }
+}
+
+.health-fact-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.health-remediation {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--orange) 32%, var(--inner-border));
+  background: color-mix(in srgb, var(--orange) 10%, var(--surface-2));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.health-remediation[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--red) 36%, var(--inner-border));
+  background: color-mix(in srgb, var(--red) 9%, var(--surface-2));
+}
+
+.health-remediation[data-tone="ok"] {
+  border-color: color-mix(in srgb, var(--green) 30%, var(--inner-border));
+  background: color-mix(in srgb, var(--green) 8%, var(--surface-2));
+}
+
+/* ── Route simulator ────────────────────────────────────────────────────────
+   Read-only notice is a first-class element, not a footnote: the whole page
+   is only trustworthy if the operator knows nothing was dispatched. */
+.simulator-notice {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--inner-border));
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.simulator-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.simulator-form-field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.simulator-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--inner-border);
+  font-size: 12px;
+}
+
+.simulator-candidate:last-child {
+  border-bottom: none;
+}
+
+.simulator-candidate[data-eligible="false"] {
+  color: var(--text-secondary);
+}
+
+.simulator-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.simulator-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--green) 34%, var(--inner-border));
+  background: color-mix(in srgb, var(--green) 8%, var(--surface-2));
+}
+
+/* ── Help screen ────────────────────────────────────────────────────────────
+   Troubleshooting as a definition list so the symptom/answer pairing survives
+   a screen reader and a narrow viewport. */
+.trouble-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trouble-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+.trouble-symptom {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.trouble-fix {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* ── About screen ───────────────────────────────────────────────────────────
+   Legal and attribution text reads as prose, at a comfortable measure, with
+   the fan notice visually separated because it is the one paragraph a reader
+   must not skim past. */
+.about-prose {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 72ch;
+}
+
+.about-prose strong {
+  color: var(--text-primary);
+}
+
+.about-notice {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--rose) 34%, var(--inner-border));
+  background: var(--rose-soft);
+}
+
+.about-notice .about-prose,
+.about-notice strong {
+  color: var(--text-primary);
+}
+
+.about-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.about-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+}
+
+.about-fact-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.about-fact-value {
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.about-missing-list {
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* ── Full-page (non-shell) surfaces ─────────────────────────────────────────
+   Not-found and system-error render outside the console shell, so they need
+   their own centred frame; the system-error variant adds a monospace
+   diagnostic block. */
+.fullpage-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.fullpage-card {
+  width: min(100%, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 26px;
+  border-radius: 22px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-popout);
+}
+
+.fullpage-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.fullpage-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.fullpage-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-top: 4px;
+}
+
+.fullpage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.diagnostic-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-details {
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--code-surface);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Auth layout with art column ────────────────────────────────────────────
+   Two columns above 900px, one below. The art column is `order: 2` so a
+   keyboard user reaches the form first in DOM order regardless of which side
+   the picture renders on. */
+.auth-split {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 340px);
+  gap: 24px;
+  align-items: stretch;
+  width: min(100%, 820px);
+}
+
+@media (max-width: 900px) {
+  .auth-split {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(100%, 420px);
+  }
+}
+
+.auth-split .auth-window {
+  width: 100%;
+}
+
+/* ── Model catalog toolbar ──────────────────────────────────────────────────
+   Capability filters as toggle chips: the model list is the content, and a
+   row of chips keeps it above the fold where a select-per-capability would
+   not. */
+.model-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--inner-border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: background-color var(--dur-micro) var(--ease-spring);
+}
+
+.model-filter-chip:hover {
+  background: var(--surface-hover);
+}
+
+.model-filter-chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.capability-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.capability-badge {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ── Responsive guard for the shell at 320px ────────────────────────────────
+   The desktop shell is a 272px rail plus a content column; at 320px the rail
+   is off-canvas (1024px rule) but padding and gap still need to shrink so the
+   content column is not 8px wide. */
+@media (max-width: 480px) {
+  .app-shell-root {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .app-topbar {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .topbar-subtitle {
+    display: none;
+  }
+}
+
+/* ── Ringkasan metric row ───────────────────────────────────────────────────
+ * Six comparable figures in one row, matching the console's operational
+ * grammar: compact cards, one accent-coloured icon, a prominent value, and a
+ * quiet context line. The row collapses by container width rather than by
+ * viewport, so the same component works in the main column and in a narrow
+ * drawer without a second set of media queries.
+ *
+ * `auto-fit` with a 168px floor puts six across at desktop width and folds to
+ * three, then two, then one as space runs out — without ever letting a card
+ * shrink below the width its value needs to stay readable.
+ */
+/*
+ * Six across when they fit, then a clean half, third or full — never a row of
+ * five with one card orphaned underneath.
+ *
+ * `auto-fit` with a 176px floor produced exactly that orphan at 1280px: the
+ * 960px content column fits five 182px cards, so the sixth wrapped alone and
+ * the row read as 5 + 1. The breakpoints below pick column counts that divide
+ * six evenly, so the grid is either full, three-and-three, or two-and-two-and-two.
+ */
+.cl-metric-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* Below the width where six cards stay readable, halve it. */
+@media (max-width: 1400px) {
+  .cl-metric-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .cl-metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Two columns hold down to 320px: a metric card needs about 150px for its
+   label and value, and six stacked cards would push the operational grid a
+   full screen down the page. The mobile audit measured this and it reads
+   well — the value stays legible and the row still scans as a set. */
+
+.cl-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5) var(--space-5) var(--space-5) var(--space-4);
+  border: 1px solid var(--inner-border);
+  border-radius: var(--radius-card);
+  /* Content Glass: translucent enough to show the atmosphere, opaque enough
+     that a metric stays readable over any part of the photograph. The blur is
+     lighter than the shell's — six of these sit side by side, and the brief
+     asks for the expensive blur to stay on the key surfaces. */
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 var(--glass-shade);
+  transition:
+    border-color var(--dur-micro) var(--ease-spring),
+    background-color var(--dur-micro) var(--ease-spring);
+}
+
+.cl-metric:hover {
+  border-color: var(--glass-border-2);
+  background: var(--glass-bg-2);
+}
+
+/* A browser without backdrop-filter gets an opaque surface rather than a
+   translucent one with the photograph showing through the text. */
+@supports not (backdrop-filter: blur(1px)) {
+  .cl-metric {
+    background: var(--surface-1);
+  }
+}
+
+.cl-metric__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+
+.cl-metric__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cl-metric__label {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-metric__value {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An unavailable metric is deliberately not a zero: the dash is styled
+   quieter than a value so a glance never mistakes it for a measurement. */
+.cl-metric__value--empty {
+  color: var(--text-tertiary);
+}
+
+/* The context line wraps rather than truncating. A clipped sentence reads as
+   a broken label ("Kesiapan belum dipe…"), and the row's height is set by the
+   tallest card anyway, so wrapping costs nothing. */
+.cl-metric__detail {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--text-tertiary);
+  text-wrap: balance;
+}
+
+/* Text that only assistive technology should read — used to give the
+   unavailable dash a spoken explanation without printing it twice. */
+.cl-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cl-metric {
+    transition: none;
+  }
+}
+
+/* ── Ringkasan hero ─────────────────────────────────────────────────────────
+ * A thin strip, not a landing-page banner: 132px on desktop, which leaves the
+ * operational content above the fold. The copy sits on a left-to-right scrim
+ * so it stays legible without dimming the illustration as a whole.
+ */
+/*
+ * Height, measured rather than chosen — and capped against the column width,
+ * not fixed.
+ *
+ * The scene is 1600x640 (2.5:1). With `object-fit: cover` the image scales by
+ * WIDTH, so a fixed height shows a smaller and smaller slice as the column
+ * grows: 70% of the artwork at 800px, 47% at 1200px, 24% at 2300px. On a wide
+ * monitor that zoomed the face straight out of frame, which is what a fixed
+ * 224px produced.
+ *
+ * `max-height` in `vw` keeps the crop proportional instead. At 1440px the hero
+ * is 224px and shows ~80% of the artwork; past that it grows with the viewport
+ * so the framing stays stable, and the `min-height` keeps it from collapsing
+ * on a short laptop. The artwork's own ratio is the ceiling: the hero never
+ * grows tall enough to push the metrics below the fold.
+ */
+.cl-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  /* The strip takes its artwork's ratio, so `object-fit: cover` has nothing to
+     discard and the scene is shown whole at every width.
+     This is `aspect-ratio`, not a `cqw` clamp: a container query unit inside
+     the element that declares `container-type` resolves against the nearest
+     ANCESTOR container, so `25cqw` measured the viewport and the ratio drifted
+     with the window — the exact instability this is meant to remove.
+     `max-height` keeps a very wide window from making the strip taller than
+     the metrics below it. */
+  aspect-ratio: 4 / 1;
+  max-height: 400px;
+  padding: var(--space-7);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+}
+
+.cl-hero__media {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.cl-hero__media img,
+.cl-hero__media picture {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Anchored to the TOP, not the centre. The subject's crown starts at y=0 of
+     the artwork and her eyes sit around 20%, so any vertical centring trades
+     the top of her head for the bottom of the frame — which is what produced a
+     visibly sliced head on a wide monitor. Anchoring to the top means the
+     crown and face are always whole; what gets cropped is her waist, which the
+     composition survives. */
+  object-position: right top;
+}
+
+/* Opaque behind the text, fully transparent before the illustration begins.
+   Fixed colours on purpose: this darkens a photograph, so it must not follow
+   the page theme — a light-theme scrim would erase the art instead. */
+.cl-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(12, 10, 9, 0.94) 0%,
+    rgba(12, 10, 9, 0.88) 32%,
+    rgba(12, 10, 9, 0.55) 52%,
+    rgba(12, 10, 9, 0.12) 68%,
+    rgba(12, 10, 9, 0) 82%
+  );
+}
+
+.cl-hero__copy {
+  position: relative;
+  max-width: 34rem;
+  min-width: 0;
+}
+
+.cl-hero__eyebrow {
+  margin: 0 0 4px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.cl-hero__title {
+  margin: 0 0 4px;
+  font-family: var(--font-head);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.25;
+  color: #fdf9f4;
+  text-wrap: balance;
+}
+
+.cl-hero__lede {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: rgba(253, 249, 244, 0.78);
+}
+
+/* Below this width the hero becomes a content-height block instead of a crop. */
+@media (max-width: 720px) {
+  .cl-hero {
+    display: block;
+    padding: 0;
+    /* `aspect-ratio` has to go, not just the height.
+       The desktop rule locks the strip to 4:1, and `height: auto` does not
+       release that — a box with a ratio and an auto height takes its height
+       FROM the ratio. At a 374px column that is 94px, while the band plus the
+       copy need 228px, so everything below the image was clipped away and the
+       hero rendered as a picture with no words. `auto` here means the height
+       follows the content, which is what this layout wants. */
+    aspect-ratio: auto;
+    max-height: none;
+    height: auto;
+  }
+
+  .cl-hero__media {
+    position: relative;
+    height: 116px;
+  }
+
+  .cl-hero__scrim {
+    background: linear-gradient(180deg, rgba(12, 10, 9, 0) 40%, rgba(12, 10, 9, 0.55) 100%);
+  }
+
+  .cl-hero__copy {
+    max-width: none;
+    padding: var(--space-5) var(--space-5) var(--space-6);
+    background: var(--surface-2);
+  }
+
+  .cl-hero__title {
+    font-size: var(--text-md);
+    color: var(--text-primary);
+  }
+
+  .cl-hero__lede {
+    color: var(--text-secondary);
+  }
+}
+
+/* ── Ringkasan operational grid ─────────────────────────────────────────────
+ * Two columns at 60/40, which is the reference's division: the activity chart
+ * and request table need room for a time axis, while the provider, routing and
+ * endpoint panels are lists that read fine in a narrower column.
+ *
+ * `minmax(0, …)` on both tracks is load-bearing. Without it a long model id in
+ * the request table sets the track's minimum to its intrinsic width and the
+ * grid overflows its container instead of letting the cell scroll.
+ */
+.cl-op-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.cl-op-col {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* A grid item defaults to `min-width: auto`, so a card refuses to shrink below
+   the widest thing inside it. The requests table sets `white-space: nowrap` on
+   every cell, which makes its min-content width several times a phone's — the
+   card kept that width, and the page scrolled sideways with the card's right
+   edge off-screen. `min-width: 0` lets the card shrink and hands the overflow
+   to `.cl-req-table__scroll`, which already knows how to scroll it. */
+.cl-op-col > * {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .cl-op-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Activity panel: a fixed plot height keeps the chart from collapsing to zero
+   inside a grid track whose height is content-driven. */
+.cl-activity__plot {
+  height: 208px;
+}
+
+.cl-activity__note {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--status-danger);
+}
+
+/* Panel heading row: title block on the left, action on the right. */
+.cl-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.cl-panel-head__text {
+  min-width: 0;
+}
+
+.cl-panel-head__title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cl-panel-head__sub {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* Compact request table. The model column is the only one allowed to grow;
+   everything else is sized by its content so the numbers stay aligned. */
+.cl-req-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.cl-req-table th {
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.cl-req-table td {
+  padding: var(--space-3);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.cl-req-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cl-req-table tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+.cl-req-table td:nth-child(3) {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.cl-req-table__scroll {
+  overflow-x: auto;
+}
+
+/* ── Requests as cards, on a phone ─────────────────────────────────────────
+   The table above is the desktop surface. Below 720px it is replaced by these
+   cards: six `nowrap` columns cannot fit a phone, and the horizontal scroll
+   that would follow reads as a table missing its right-hand side. Both read the
+   same rows, so they cannot disagree. */
+.cl-req-cards {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 720px) {
+  .cl-req-table__scroll {
+    display: none;
+  }
+
+  .cl-req-cards {
+    display: grid;
+    gap: 10px;
+  }
+}
+
+.cl-req-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.cl-req-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The model id is what an operator came to read, so it truncates rather than
+   wrapping — but the full value stays in the `title` and in the desktop table. */
+.cl-req-card__model {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-req-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.cl-req-card__meta > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cl-req-card__meta dt {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.cl-req-card__meta dd {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status pill, sized so a two-word state does not change the row height. */
+.cl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.cl-pill[data-tone="positive"] {
+  color: var(--status-success);
+}
+
+.cl-pill[data-tone="danger"] {
+  color: var(--status-danger);
+}
+
+.cl-pill[data-tone="warning"] {
+  color: var(--status-warning);
+}
+
+/* Provider / routing summary rows: label, value, and a hairline between. */
+.cl-summary-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cl-summary-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cl-summary-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.cl-summary-row dt {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.cl-summary-row dd {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cl-req-table tbody tr {
+    transition: none;
+  }
+}
+
+/* Provider rows in the status panel: name on the left, state on the right. */
+.cl-provider-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cl-provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.cl-provider-row__name {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inline action link inside a panel header. */
+.cl-link-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: var(--radius-control);
+  padding: 3px 6px;
+  transition: color var(--dur-micro) var(--ease-spring), background-color var(--dur-micro) var(--ease-spring);
+}
+
+.cl-link-action:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cl-link-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cl-link-action {
+    transition: none;
+  }
+}
+
+/* ── Mobile navigation ergonomics ───────────────────────────────────────────
+ * Two problems on a phone, measured at 390x844.
+ *
+ * 1. Every navigation row was 36px tall (8px padding around a 13.5px label).
+ *    That is below the ~44px a fingertip reliably hits, and it was true of all
+ *    35 interactive elements on the page — not only the nav.
+ *
+ * 2. The rail scrolls (733px of content in a 641px box) but drew no
+ *    scrollbar and no fade, so "Bantuan", "Pengaturan" and "Tentang" were
+ *    simply absent from the screen. A list that continues off the edge has to
+ *    say so.
+ */
+@media (max-width: 1024px) {
+  .nav-link-item {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  /* The rail is a scroll container here, so its bar is visible rather than
+     hidden: it is the only cue that more navigation exists below. */
+  .app-sidebar nav {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    /* A soft fade at the bottom edge, under the last visible row. */
+    mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent 100%);
+  }
+
+  .app-sidebar nav::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .app-sidebar nav::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+}
+
+/* ── Touch targets ──────────────────────────────────────────────────────────
+ * The audit measured every interactive element on all 16 console routes at
+ * 390px. Before this rule, 471 of them were under 44px — including all 16
+ * navigation rows at 36px, the three topbar controls at 38px, and the
+ * sign-out button at 30px.
+ *
+ * 44px is the floor, not a target: a control already larger is untouched, and
+ * `min-height` is used rather than a fixed height so a control that needs two
+ * lines can still grow. Applied below the sidebar breakpoint and on any
+ * coarse pointer, so a tablet with a stylus and a phone both get it while a
+ * desktop mouse keeps the denser layout.
+ */
+@media (max-width: 1024px), (pointer: coarse) {
+  .topbar-button,
+  .topbar-icon-button,
+  .topbar-menu-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The label-bearing button keeps its text and gains height only. */
+  .topbar-button {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .topbar-icon-button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* The sign-out control kept its 30px box in an inline style, which no
+   stylesheet can override. It is a class now so the touch rules above can
+   reach it: on a phone it is the last thing between the operator and a
+   mis-tap, and 30px is well under the 44px floor. */
+.user-logout-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+@media (max-width: 1024px), (pointer: coarse) {
+  .user-logout-button {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+}
+
+/* ── Filter chips and composer controls ─────────────────────────────────────
+ * Three groups survived the first two passes because each is a bespoke class
+ * rather than a shared primitive: the model capability chips (29px), the log
+ * severity filters (25px), and the Studio composer's send and attach buttons
+ * (32px and 17px).
+ *
+ * The chips grow vertically only — their width is already comfortable and
+ * widening them would push the filter row onto three lines. The composer
+ * buttons grow in both axes; they sit alone at the edge of a text field with
+ * room to spare.
+ */
+@media (max-width: 1024px), (pointer: coarse) {
+  .model-filter-chip,
+  .console-log-filter {
+    min-height: 44px;
+    padding-block: 0;
+  }
+
+  .mlab-send-btn,
+  .console-log-clear-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The prompt-suggestion buttons wrap their text; height follows content. */
+  .mlab-suggestion,
+  [class*="suggestion"] {
+    min-height: 44px;
+  }
+
+  /* Attach / sessions controls in the Studio composer. */
+  .mlab-attach-btn,
+  .mlab-sessions-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* The Studio composer's send, attach and sessions buttons hard-coded 32px in
+   inline styles, which no stylesheet can override. They read the size from a
+   custom property now, so the touch rules can raise it without duplicating
+   the rest of each button's inline styling. */
+@media (max-width: 1024px), (pointer: coarse) {
+  :root {
+    --composer-btn-size: 44px;
+  }
+}
+
+/* The remaining Studio controls: the Sessions pill (28px) and the prompt
+   suggestion buttons, which size from their own padding. Both are inline
+   styles, so each reads a custom property the touch rules can set. */
+@media (max-width: 1024px), (pointer: coarse) {
+  :root {
+    --composer-pill-height: 44px;
+  }
+
+  /* Prompt suggestions: height follows their padding, so raise it there. */
+  .mlab-empty button,
+  [class*="studio"] button {
+    min-height: 44px;
+  }
+}
+
+/* ── Studio composer toolbar on a narrow screen ─────────────────────────────
+ * The row held attach, model, thinking, sessions, settings and send side by
+ * side with no wrap. On a phone that squeezed the model button — which has a
+ * `maxWidth` but no floor — down to the width of its own ellipsis, rendering
+ * "Pick model" as "k mo" behind a stray scrollbar.
+ *
+ * It wraps now. The send button is pushed to the end of the row it lands on,
+ * so the primary action stays at the trailing edge where a thumb expects it
+ * rather than floating mid-row when the wrap happens.
+ */
+@media (max-width: 720px) {
+  .mlab-toolbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* The model name is the one control that carries information, so it gets
+     the first row to itself and enough width to show a real model id. */
+  .mlab-model-button {
+    order: -1;
+    flex: 1 1 100%;
+    max-width: none !important;
+    justify-content: flex-start;
+    padding-inline: 14px !important;
+    font-size: 12px !important;
+  }
+
+  /* Send stays last, pushed to the trailing edge of whatever row it is on. */
+  .mlab-toolbar > *:last-child {
+    margin-left: auto;
+  }
+
+  /* Secondary controls keep their size but stop fighting for space. */
+  .mlab-toolbar > * {
+    flex-shrink: 0;
+  }
+}
+
+/* ===== bansos advanced sections ===== */
+/* A collapsed group of settings that most operators never touch. The summary
+   is the only thing visible, so it carries the title, an optional count of
+   configured values, and a one-line description. */
+.bansos-advanced {
+  border: 1px solid var(--inner-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bansos-advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.bansos-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bansos-advanced > summary::before {
+  content: "▸";
+  color: var(--text-tertiary);
+  font-size: 11px;
+  transition: transform var(--dur-micro, 120ms) ease;
+}
+
+.bansos-advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.bansos-advanced > summary:hover {
+  background: var(--surface-3, rgba(255, 255, 255, 0.04));
+}
+
+.bansos-advanced > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.bansos-advanced-title {
+  color: var(--text-primary);
+}
+
+/* Says "there is something configured in here" without opening it. */
+.bansos-advanced-badge {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface-1, #fff);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.bansos-advanced-desc {
+  flex: 1 1 100%;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.bansos-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--inner-border);
+}

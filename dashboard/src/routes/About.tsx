@@ -1,0 +1,118 @@
+/**
+ * About: license, the required upstream credit and change notice, the
+ * unofficial fan-theme disclaimer, and an honest localization-coverage
+ * statement.
+ *
+ * ── Why the localization gap is listed by name ─────────────────────────────
+ * The product contract permits an accurate localization limitation instead of
+ * full translation, but only if it is explicit. A vague "some pages may be in
+ * English" is a claim the operator cannot check. This page enumerates the exact
+ * routes that still render upstream English copy, from the same constant the
+ * rest of the app reads, so the statement cannot silently drift from reality.
+ *
+ * ── Why the fan notice is not a footnote ───────────────────────────────────
+ * The visual theme is derivative fan work around a licensed character. The
+ * source stays GPL-3.0-only while the character identity does not belong to
+ * this project, and the notice says both plainly rather than implying
+ * endorsement or commercial rights.
+ */
+import { type ReactNode } from "react";
+import { Info, Scale } from "lucide-react";
+import { Card, CardBody, CardHeader } from "../components/ui/card";
+import { Stack } from "../components/ui/stack";
+import { PageHead } from "../components/PageHead";
+import { useT } from "../shared/locale-context";
+import { UNTRANSLATED_SURFACES } from "../shared/i18n";
+import { DASHBOARD_RELEASE_LABEL } from "../shared/version";
+import { useSystemHealth } from "../hooks/system";
+
+export default function About(): ReactNode {
+  const t = useT();
+  const healthQuery = useSystemHealth();
+  const health = healthQuery.data;
+
+  return (
+    <div className="dashboard-page">
+      <PageHead
+        eyebrow="System / About"
+        title={"About\nKeyla."}
+        description={t("about.subtitle")}
+        stats={[
+          { label: "Console", value: DASHBOARD_RELEASE_LABEL, meta: "Dashboard release" },
+          { label: "Gateway", value: health?.version ?? "—", meta: health?.platform ?? "No snapshot" },
+          { label: "License", value: "GPL-3.0", meta: "Only · no warranty" },
+        ]}
+      />
+
+      <Card>
+        <CardHeader title="Identity & release" icon={<Info size={15} />} />
+        <CardBody>
+          <div className="about-facts">
+            <div className="about-fact">
+              <span className="about-fact-label">{t("about.version")}</span>
+              <span className="about-fact-value">{DASHBOARD_RELEASE_LABEL}</span>
+            </div>
+            <div className="about-fact">
+              <span className="about-fact-label">{t("about.gatewayVersion")}</span>
+              <span className="about-fact-value">
+                {healthQuery.isPending
+                  ? t("state.loading")
+                  : healthQuery.isError
+                    ? t("state.offline")
+                    : (health?.version ?? "—")}
+              </span>
+            </div>
+            <div className="about-fact">
+              <span className="about-fact-label">{t("about.runtime")}</span>
+              <span className="about-fact-value">
+                {health ? `${health.platform} · pid ${health.pid}` : "—"}
+              </span>
+            </div>
+            <div className="about-fact">
+              <span className="about-fact-label">{t("about.license")}</span>
+              <span className="about-fact-value">GPL-3.0-only</span>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title={t("about.license")} icon={<Scale size={15} />} />
+        <CardBody>
+          <Stack gap="12px">
+            <p className="about-prose">{t("about.licenseBody")}</p>
+            <div>
+              <p className="about-prose" style={{ marginBottom: 6 }}>
+                <strong>{t("about.derivative")}</strong>
+              </p>
+              <p className="about-prose">{t("about.derivativeBody")}</p>
+            </div>
+          </Stack>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title={t("about.localization")} />
+        <CardBody>
+          <Stack gap="10px">
+            <p className="about-prose">{t("about.localizationBody")}</p>
+            <p className="about-prose">
+              <strong>
+                {t("about.localizationGap", {
+                  pages: UNTRANSLATED_SURFACES.map((surface) => surface.name).join(", "),
+                })}
+              </strong>
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 11.5, color: "var(--text-tertiary)", lineHeight: 1.8 }}>
+              {UNTRANSLATED_SURFACES.map((surface) => (
+                <li key={surface.path}>
+                  <code>{surface.path}</code> — {surface.name}
+                </li>
+              ))}
+            </ul>
+          </Stack>
+        </CardBody>
+      </Card>
+    </div>
+  );
+}

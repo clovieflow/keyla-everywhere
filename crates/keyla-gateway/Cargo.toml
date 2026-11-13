@@ -1,0 +1,47 @@
+[package]
+name = "keyla-gateway"
+description = "HTTP shell for the Keyla gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "keyla-gateway"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+async-stream = "0.3"
+axum = "0.8"
+base64.workspace = true
+bytes = "1"
+chrono = "0.4"
+keyla-config = { path = "../keyla-config" }
+keyla-console = { path = "../keyla-console" }
+keyla-core = { path = "../keyla-core" }
+keyla-db = { path = "../keyla-db" }
+keyla-protocol = { path = "../keyla-protocol" }
+keyla-providers = { path = "../keyla-providers" }
+keyla-routing = { path = "../keyla-routing" }
+keyla-security = { path = "../keyla-security" }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "json"] }
+keyla-observability = { path = "../keyla-observability" }
+percent-encoding = "2"
+regex = "1"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "fs", "sync"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1"
+postgresql_embedded = { version = "0.22", features = ["blocking"] }
+serde_json.workspace = true
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "json"] }
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

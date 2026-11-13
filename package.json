@@ -1,0 +1,30 @@
+{
+  "name": "keyla-everywhere",
+  "version": "2.3.0-keyla.1",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "workspaces": [
+    "dashboard"
+  ],
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "scripts": {
+    "build": "bun run dashboard:build && cargo build --release -p keyla-cli --bin keyla",
+    "keyla": "cargo run -p keyla-cli --bin keyla --",
+    "dashboard:build": "bun run --cwd dashboard build",
+    "dashboard:dev": "bun run --cwd dashboard dev",
+    "dashboard:test": "bun run --cwd dashboard test",
+    "dashboard:typecheck": "bun run --cwd dashboard typecheck",
+    "dev": "bun run dev:stack",
+    "dev:backend": "cargo run -p keyla-gateway",
+    "dev:stack": "concurrently -n BACKEND,DASHBOARD -c cyan,magenta --kill-others-on-fail \"bun run dev:backend\" \"bun run dashboard:dev\"",
+    "test": "cargo test --workspace",
+    "typecheck": "cargo clippy --workspace --all-targets -- -D warnings"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

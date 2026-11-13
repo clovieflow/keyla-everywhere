@@ -1,0 +1,21 @@
+[package]
+name = "keyla-cli"
+description = "Operator CLI and single-binary entry point for the Keyla gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "keyla"
+path = "src/main.rs"
+
+[dependencies]
+base64.workspace = true
+anyhow = "1"
+keyla-config = { path = "../keyla-config" }
+keyla-db = { path = "../keyla-db" }
+keyla-gateway = { path = "../keyla-gateway" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres"] }

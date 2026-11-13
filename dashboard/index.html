@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <meta
+      name="description"
+      content="Keyla Everywhere is a self-hosted AI gateway: one endpoint for OpenAI, Anthropic, and every upstream provider you use — routing, quotas, observability, and an operator console."
+    />
+    <link rel="icon" type="image/svg+xml" href="/keyla.svg" />
+    <!-- keyla:social-meta:start -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Keyla Everywhere — One endpoint. Everywhere." />
+    <meta
+      property="og:description"
+      content="Keyla Everywhere is a self-hosted AI gateway: one endpoint for OpenAI, Anthropic, and every upstream provider you use — routing, quotas, observability, and an operator console."
+    />
+    <meta property="og:image" content="/keyla-social.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta
+      property="og:image:alt"
+      content="Keyla Everywhere — one endpoint for every model"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Keyla Everywhere — One endpoint. Everywhere." />
+    <meta
+      name="twitter:description"
+      content="One self-hosted gateway for OpenAI, Anthropic, and the configured provider adapters. Rust gateway, React console."
+    />
+    <meta name="twitter:image" content="/keyla-social.svg" />
+    <meta name="twitter:image:alt" content="Keyla Everywhere — one endpoint for every model" />
+    <!-- keyla:social-meta:end -->
+    <style>
+      html { background: #0b0b0b; }
+      html[data-app="console"],
+      html[data-app="share"] { background: #0b0b0b; }
+    </style>
+    <script>
+      // This bootstrap mirrors dashboard/src/shared/theme.ts because it must run
+      // before the selected app chunk loads. Keep the /console and /share
+      // predicates, storage keys, accepted values, and the system-resolution
+      // rule in sync with TypeScript.
+      //
+      // `data-theme` receives the RESOLVED palette (light|dark) so the
+      // stylesheet needs no prefers-color-scheme branch; `data-theme-choice`
+      // mirrors the operator's raw preference (system|light|dark) for the
+      // chooser. Resolving here is what prevents the first-paint flash: the
+      // old bootstrap wrote the literal "system", which no token block
+      // matched, so a dark-OS operator got a light palette until React mounted.
+      (() => {
+        const pathname = window.location.pathname;
+        const isShare = pathname === "/share" || pathname.startsWith("/share/");
+        const isConsole = pathname === "/console" || pathname.startsWith("/console/");
+        const root = document.documentElement;
+        root.dataset.app = isShare ? "share" : isConsole ? "console" : "landing";
+        const themeMeta = document.querySelector('meta[name="theme-color"]');
+        const colorSchemeMeta = document.createElement("meta");
+        colorSchemeMeta.name = "color-scheme";
+        // The console and the public share page both render from the console
+        // token set, so both advertise the same light/dark support. The landing
+        // app keeps its own dark-only presentation.
+        colorSchemeMeta.content = isConsole || isShare ? "light dark" : "dark";
+        document.head.appendChild(colorSchemeMeta);
+        document.title = isShare
+          ? "Keyla Everywhere — Shared access"
+          : isConsole
+            ? "Keyla Everywhere Console"
+            : "Keyla Everywhere — One endpoint. Everywhere.";
+        // Both palettes are dark-led for the browser chrome; the console and
+        // share page share the Night page background so the address bar does
+        // not flash cream before the first paint of a dark theme.
+        if (themeMeta) themeMeta.setAttribute("content", "#0b0b0b");
+        if (!isConsole && !isShare) return;
+        const osPrefersDark =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const resolve = (choice) =>
+          choice === "dark" ? "dark" : choice === "light" ? "light" : osPrefersDark ? "dark" : "light";
+        let choice;
+        try {
+          const stored = window.localStorage.getItem("console-theme");
+          choice =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : // The public share page presents dark by default; the console
+                // keeps following the OS until the operator chooses.
+                isShare
+                ? "dark"
+                : "system";
+        } catch {
+          choice = isShare ? "dark" : "system";
+        }
+        root.dataset.theme = resolve(choice);
+        root.dataset.themeChoice = choice;
+        // Language is applied here too so `<html lang>` is right before the
+        // bundle loads; the LocaleProvider keeps it in sync afterwards.
+        try {
+          const storedLocale = window.localStorage.getItem("console-locale");
+          root.lang = storedLocale === "en" ? "en" : "id";
+        } catch {
+          root.lang = "id";
+        }
+        try {
+          if (window.localStorage.getItem("console-ambient-glow") === "off") {
+            root.dataset.ambientGlow = "off";
+          }
+        } catch {
+          // Ambient glow stays on by default when storage is unavailable.
+        }
+      })();
+    </script>
+    <title>Keyla Everywhere</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
