@@ -105,7 +105,49 @@ curl -fsS http://127.0.0.1:12800/health/ready
 ```
 
 `doctor` checks the encryption key, database reachability, migration ledger,
-and seeded provider/model counts. It never prints credentials.
+and seeded provider/model counts. It never prints credentials. Add `--json` to
+`status`, `doctor`, or `version` for scripts and monitoring:
+
+```bash
+keyla status --json
+keyla doctor --json
+keyla version --json
+```
+
+Build without pulling or installing:
+
+```bash
+keyla build
+```
+
+Follow the detached log live:
+
+```bash
+keyla logs --follow
+keyla logs -f --lines 200
+```
+
+Open the console in the default browser using the configured host/port:
+
+```bash
+keyla open
+keyla open --url http://127.0.0.1:12800
+```
+
+Install shell completion:
+
+```bash
+# bash
+keyla completion bash > ~/.local/share/bash-completion/completions/keyla
+
+# zsh
+mkdir -p ~/.zfunc
+keyla completion zsh > ~/.zfunc/_keyla
+# add: fpath=(~/.zfunc $fpath); autoload -Uz compinit && compinit
+
+# fish
+keyla completion fish > ~/.config/fish/completions/keyla.fish
+```
 
 ## One-command update
 
@@ -142,12 +184,15 @@ path instead of silently restarting an old binary.
 | `keyla start` | Start a detached process, writing `keyla.pid` and `keyla.log` under the data directory |
 | `keyla down` | Send `SIGTERM` to the detached process and wait for drain |
 | `keyla restart` | Stop and start the detached process |
-| `keyla logs [--lines N]` | Print the last N lines of the detached log (default 100) |
+| `keyla logs [--lines N] [-f]` | Print the last N lines, or follow the detached log |
 | `keyla setup` | Create/repair `.env` and generate `KEYLA_ENCRYPTION_KEY` if needed |
+| `keyla build` | Build dashboard + release binary without pulling or installing |
 | `keyla update [--no-restart]` | Pull, build, install, and optionally restart a source checkout |
-| `keyla status [--url URL]` | Probe `/health/ready`; exit 1 when not ready |
-| `keyla doctor` | Check config, Postgres, migrations, and catalog counts |
-| `keyla version` | Print the binary version |
+| `keyla status [--url URL] [--json]` | Probe `/health/ready`; exit 1 when not ready |
+| `keyla doctor [--json]` | Check config, Postgres, migrations, and catalog counts |
+| `keyla open [--url URL]` | Open the console in the default browser |
+| `keyla completion <bash\|zsh\|fish>` | Print shell completion |
+| `keyla version [--json]` | Print the binary version |
 | `keyla help` | Print command help |
 
 The PID and log locations come from the resolved data directory:
@@ -331,6 +376,9 @@ curl -fsS http://127.0.0.1:12800/health/ready
 ```
 
 ## Development
+
+Use `keyla build` for the dashboard + release binary, or run the backend and
+Vite separately:
 
 ```bash
 bun install
