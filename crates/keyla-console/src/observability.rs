@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::IntoResponse;
 use axum::response::Response;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use chrono::{DateTime, SecondsFormat, Utc};
 use keyla_config::Env;
 use serde_json::{Value, json};
@@ -228,6 +230,40 @@ pub async fn system_health(State(state): State<ConsoleState>, headers: HeaderMap
         Ok(tenant) => tenant,
         Err(response) => return response,
     };
+    json_response(StatusCode::OK, health_value(&state, &tenant).await)
+}
+
+/// `GET /console/api/system/health/stream` — the same snapshot pushed before
+/// the browser can render a poll interval. A single authenticated stream owns
+/// one DB connection for its lifetime; it ends when the client disconnects.
+pub async fn system_health_stream(
+    State(state): State<ConsoleState>,
+    headers: HeaderMap,
+) -> Response {
+    let tenant = match authorize_tenant(&state.pool, &headers, "dashboard:read").await {
+        Ok(tenant) => tenant,
+        Err(response) => return response,
+    };
+    let initial = health_value(&state, &tenant).await;
+    let state = state.clone();
+    let body = async_stream::stream! {
+        yield Ok::<Event, std::convert::Infallible>(
+            Event::default().event("init").json_data(initial).unwrap_or_default(),
+        );
+        let mut ticker = tokio::time::interval(Duration::from_millis(250));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            let value = health_value(&state, &tenant).await;
+            yield Ok(Event::default().event("health").json_data(value).unwrap_or_default());
+        }
+    };
+    Sse::new(body)
+        .keep_alive(KeepAlive::default())
+        .into_response()
+}
+
+async fn health_value(state: &ConsoleState, tenant: &str) -> Value {
     let (rss, cpu_percent, total_memory, cores) = process_metrics();
     let configured_limit =
         keyla_config::resolve_memory_limit_override_bytes(&keyla_config::ProcessEnv)
@@ -250,7 +286,7 @@ pub async fn system_health(State(state): State<ConsoleState>, headers: HeaderMap
          FROM telemetry_events
          WHERE tenant_id = $1::uuid AND created_at >= $2"
     ))
-    .bind(&tenant)
+    .bind(tenant)
     .bind(since)
     .fetch_one(&state.pool)
     .await;
@@ -292,33 +328,30 @@ pub async fn system_health(State(state): State<ConsoleState>, headers: HeaderMap
         "healthy"
     };
     let version = std::env::var("KEYLA_VERSION").unwrap_or_else(|_| VERSION.to_owned());
-    json_response(
-        StatusCode::OK,
-        json!({
-            "version": version,
-            "status": status,
-            "uptime_seconds": state.started.elapsed().as_secs(),
-            "database_healthy": database_healthy,
-            "redis_healthy": redis_healthy,
-            "memory_bytes": rss,
-            "memory_percent": memory_percent,
-            "memory_limit_bytes": memory_limit,
-            "heap_used_bytes": 0,
-            "heap_total_bytes": 0,
-            "external_bytes": 0,
-            "cpu_percent": (cpu_percent * 100.0).round() / 100.0,
-            "cpu_cores": cores,
-            "pid": std::process::id(),
-            "platform": std::env::consts::OS,
-            "request_count": total,
-            "error_count": errors,
-            "latency_avg_ms": latency_avg,
-            "latency_p95_ms": p95,
-            "latency_p99_ms": p99,
-            "cache_hit_rate_percent": cache_hit,
-            "avg_tokens_per_sec": (tokens_per_sec * 100.0).round() / 100.0,
-        }),
-    )
+    json!({
+        "version": version,
+        "status": status,
+        "uptime_seconds": state.started.elapsed().as_secs(),
+        "database_healthy": database_healthy,
+        "redis_healthy": redis_healthy,
+        "memory_bytes": rss,
+        "memory_percent": memory_percent,
+        "memory_limit_bytes": memory_limit,
+        "heap_used_bytes": 0,
+        "heap_total_bytes": 0,
+        "external_bytes": 0,
+        "cpu_percent": (cpu_percent * 100.0).round() / 100.0,
+        "cpu_cores": cores,
+        "pid": std::process::id(),
+        "platform": std::env::consts::OS,
+        "request_count": total,
+        "error_count": errors,
+        "latency_avg_ms": latency_avg,
+        "latency_p95_ms": p95,
+        "latency_p99_ms": p99,
+        "cache_hit_rate_percent": cache_hit,
+        "avg_tokens_per_sec": (tokens_per_sec * 100.0).round() / 100.0,
+    })
 }
 
 /// Parses a usage period into its start instant; `None` means "all".

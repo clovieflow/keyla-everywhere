@@ -37,7 +37,8 @@ describe("Health page realtime", () => {
   test("the page asks for the fast cadence", () => {
     // The default stays slow for the shell's status dot, which shares the
     // query; the page opts in because it answers "healthy right now".
-    expect(healthSource).toContain("useSystemHealth(1_000)");
+    expect(healthSource).toContain("useSystemHealth(5_000)");
+    expect(healthSource).toContain("useSystemHealthStream()");
     expect(healthSource).toContain("useReadinessProbe(1_000)");
   });
 
@@ -54,6 +55,12 @@ describe("Health page realtime", () => {
     const hook = readinessHooks.slice(readinessHooks.indexOf("export function useReadinessProbe"));
     expect(hook).toContain("intervalMs = 5_000");
     expect(hook).toContain("refetchInterval: intervalMs");
+  });
+
+  test("subscribes to the health stream instead of leaning on polling", () => {
+    expect(healthSource).toContain("useSystemHealthStream");
+    expect(systemHooks).toContain("/console/api/system/health/stream");
+    expect(systemHooks).toContain('addEventListener("health"');
   });
 
   test("advances uptime locally between snapshots", () => {

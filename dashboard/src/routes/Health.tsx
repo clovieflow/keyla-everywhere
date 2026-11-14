@@ -34,7 +34,7 @@ import { Stack } from "../components/ui/stack";
 import { LoadingState, ErrorState } from "../components/ui/state";
 import { useReadinessProbe } from "../hooks/readiness";
 import { useInFlight } from "../hooks/live";
-import { useSystemHealth } from "../hooks/system";
+import { useSystemHealth, useSystemHealthStream } from "../hooks/system";
 import { PageHead } from "../components/PageHead";
 import { useT } from "../shared/locale-context";
 import { formatAgo, formatBytes, formatDuration, formatNumber } from "../shared/format";
@@ -111,7 +111,8 @@ function useLiveUptime(serverSeconds: number | undefined, updatedAt: number): nu
 
 export default function Health(): ReactNode {
   const t = useT();
-  const healthQuery = useSystemHealth(1_000);
+  const healthQuery = useSystemHealth(5_000);
+  useSystemHealthStream();
   const probeQuery = useReadinessProbe(1_000);
   const inFlight = useInFlight();
   const health = healthQuery.data;

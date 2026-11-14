@@ -4,8 +4,62 @@ import { queryKeys } from "../data/query-keys";
 import type { SessionUser, UsageDimension } from "../data/contracts";
 import { assertAuditListPage, assertSystemHealth, assertUsageBy, assertUsageChart, assertUsageRequestDetail, assertUsageRequests, assertUsageSummary, querySignal } from "./common";
 import { DASHBOARD_QUERY_OPTIONS } from "../data/query-policy";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
+
+
+/**
+ * Subscribes the shared health query to the gateway's SSE snapshot. Every
+ * frame replaces the cached snapshot, so process, request, and latency fields
+ * move together without a browser-side poll. The normal query remains mounted
+ * as a slower fallback; this hook only closes the perceived gap.
+ */
+export function useSystemHealthStream() {
+  const queryClient = useQueryClient();
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    let stopped = false;
+    let source: EventSource | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const apply = (raw: string) => {
+      if (stopped) return;
+      try {
+        const parsed = assertSystemHealth(JSON.parse(raw) as unknown);
+        queryClient.setQueryData(queryKeys.system.health, parsed);
+        setLive(true);
+      } catch {
+        // A malformed frame leaves the last snapshot in place.
+      }
+    };
+
+    const connect = () => {
+      source = new EventSource("/console/api/system/health/stream");
+      source.addEventListener("init", (event) => apply((event as MessageEvent).data as string));
+      source.addEventListener("health", (event) => apply((event as MessageEvent).data as string));
+      source.onerror = () => {
+        if (stopped) return;
+        source?.close();
+        source = undefined;
+        setLive(false);
+        retryTimer = setTimeout(() => {
+          if (!stopped) connect();
+        }, 1_000);
+      };
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+      source?.close();
+    };
+  }, [queryClient]);
+
+  return live;
+}
 
 export interface UpdateStatus {
   readonly currentVersion: string;
