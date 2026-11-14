@@ -26,5 +26,7 @@ export const toast = {
     sonnerToast.success(title, withCopyAction(title, description)),
   error: (title: string, description?: string | null) =>
     sonnerToast.error(title, withCopyAction(title, description)),
+  info: (title: string, description?: string | null) =>
+    sonnerToast.info(title, withCopyAction(title, description)),
   dismiss: (id?: string | number) => sonnerToast.dismiss(id),
 };

@@ -36,9 +36,10 @@ import { consoleRequest } from "../data/api";
 import { queryClient } from "../data/query-client";
 import { prefetchRouteIntent } from "../data/route-prefetch";
 import { usePullToRefresh } from "../hooks/use-pull-to-refresh";
-import { useSystemHealth } from "../hooks/system";
+import { useSystemHealth, useUpdateStatus } from "../hooks/system";
 import { useProviders } from "../hooks/providers";
 import { DASHBOARD_RELEASE_LABEL } from "../shared/version";
+import { toast } from "../shared/toast";
 import type { SessionUser } from "../data/contracts";
 import { formatUptime } from "../shared/format";
 
@@ -189,6 +190,10 @@ function useSafeSystemHealth() {
 
 function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
   const t = useT();
+  const update = useUpdateStatus();
+  const updateStatus = update.data;
+  const updateAvailable = updateStatus?.updateAvailable === true &&
+    typeof updateStatus.latestVersion === "string";
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -217,25 +222,44 @@ function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!updateAvailable || !updateStatus?.latestVersion) return;
+    const storageKey = `keyla:update-notified:${updateStatus.latestVersion}`;
+    try {
+      if (window.localStorage.getItem(storageKey) === "1") return;
+      window.localStorage.setItem(storageKey, "1");
+    } catch {
+      // Storage can be blocked in private contexts; the in-app dot still shows.
+    }
+    toast.info(
+      t("update.availableTitle"),
+      t("update.availableBody", { version: updateStatus.latestVersion }),
+    );
+  }, [updateAvailable, updateStatus?.latestVersion, t]);
+
   return (
     <div style={{ position: "relative" }}>
       <button
         ref={triggerRef}
         type="button"
         className="topbar-icon-button"
-        aria-label={t("nav.commandPalette")}
+        aria-label={t("nav.notifications")}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((v) => !v)}
+        style={{ position: "relative" }}
       >
         <Bell size={17} />
+        {updateAvailable ? (
+          <span className="topbar-notification-dot" aria-label={t("update.newBadge")} />
+        ) : null}
       </button>
       {open
         ? createPortal(
             <div
               ref={contentRef}
               role="dialog"
-              aria-label={t("nav.commandPalette")}
+              aria-label={t("nav.notifications")}
               className="popout-enter glass"
               style={{
                 position: "fixed",
@@ -280,7 +304,7 @@ function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
                   >
                     <Bell size={13} />
                   </span>
-                  <span>{t("nav.commandPalette")}</span>
+                  <span>{t("nav.notifications")}</span>
                 </div>
                 <button
                   type="button"
@@ -312,6 +336,42 @@ function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
                     </p>
                   </div>
                 </div>
+                {updateAvailable && updateStatus?.latestVersion ? (
+                  <a
+                    href={updateStatus.releaseUrl ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      padding: "12px",
+                      borderRadius: "14px",
+                      border: "1px solid var(--accent)",
+                      background: "var(--accent-soft)",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      color: "inherit",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Rocket
+                      size={16}
+                      style={{ color: "var(--accent)", marginTop: "2px", flexShrink: 0 }}
+                    />
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: "12.5px", color: "var(--accent)" }}>
+                        {t("update.availableTitle")}
+                      </p>
+                      <p style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                        {t("update.availableBody", { version: updateStatus.latestVersion })}
+                      </p>
+                      {updateStatus.releaseUrl ? (
+                        <span style={{ display: "inline-block", marginTop: "6px", fontSize: "11px", fontWeight: 600, color: "var(--accent)" }}>
+                          {t("update.openRelease")}
+                        </span>
+                      ) : null}
+                    </div>
+                  </a>
+                ) : null}
                 <div
                   style={{
                     padding: "12px",
@@ -332,7 +392,7 @@ function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
                       {DASHBOARD_RELEASE_LABEL}
                     </p>
                     <p style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
-                      {t("overview.subtitle")}
+                      {t("update.currentVersion")}
                     </p>
                   </div>
                 </div>

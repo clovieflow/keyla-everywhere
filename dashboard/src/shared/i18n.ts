@@ -177,6 +177,7 @@ const ID_MESSAGES = {
   "bansos.updated": "Diperbarui",
 
   "nav.commandPalette": "Palet perintah",
+  "nav.notifications": "Notifikasi",
   "nav.searchPages": "Cari halaman…",
   "nav.noMatches": "Tidak ada halaman yang cocok.",
   "nav.signOut": "Keluar",
@@ -283,6 +284,11 @@ const ID_MESSAGES = {
   "network.subtitle": "Pool keluar, probe, dan throughput",
   "apiKeys.subtitle": "Kunci akses, rotasi, dan pembagian",
   "logs.subtitle": "Console dan audit trail langsung",
+  "update.availableTitle": "Versi baru tersedia",
+  "update.availableBody": "Versi {version} sudah dirilis. Buka detail rilis untuk memperbarui.",
+  "update.currentVersion": "Versi yang berjalan",
+  "update.openRelease": "Lihat rilis",
+  "update.newBadge": "Ada versi baru",
   "promptInjection.eyebrow": "Kendali / Prompt Injection",
   "promptInjection.title": "Prompt Injection",
   "promptInjection.description":
@@ -855,6 +861,7 @@ const EN_MESSAGES: Readonly<Record<MessageKey, string>> = {
   "bansos.updated": "Updated",
 
   "nav.commandPalette": "Command palette",
+  "nav.notifications": "Notifications",
   "nav.searchPages": "Search pages…",
   "nav.noMatches": "No matching pages found.",
   "nav.signOut": "Sign out",
@@ -952,6 +959,11 @@ const EN_MESSAGES: Readonly<Record<MessageKey, string>> = {
   "network.subtitle": "Outbound pools, probes, and throughput",
   "apiKeys.subtitle": "Access keys, rotation, and sharing",
   "logs.subtitle": "Live console and audit trail",
+  "update.availableTitle": "New version available",
+  "update.availableBody": "Version {version} is available. Open the release details to update.",
+  "update.currentVersion": "Running version",
+  "update.openRelease": "View release",
+  "update.newBadge": "A new version is available",
   "promptInjection.eyebrow": "Control / Prompt Injection",
   "promptInjection.title": "Prompt Injection",
   "promptInjection.description":

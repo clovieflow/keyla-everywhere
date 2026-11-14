@@ -443,6 +443,17 @@ body::after {
   color: #98938b;
 }
 
+.topbar-notification-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px #111111;
+}
+
 .topbar-icon-button:hover {
   background: #1a1a1a;
   color: #f2efe8;

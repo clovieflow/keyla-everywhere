@@ -7,6 +7,30 @@ import { DASHBOARD_QUERY_OPTIONS } from "../data/query-policy";
 import { useQuery } from "@tanstack/react-query";
 
 
+export interface UpdateStatus {
+  readonly currentVersion: string;
+  readonly latestVersion: string | null;
+  readonly updateAvailable: boolean;
+  readonly releaseUrl: string | null;
+  readonly releaseName: string | null;
+  readonly publishedAt: string | null;
+  readonly checkFailed: boolean;
+  readonly checkDisabled: boolean;
+  readonly checkedAt: string;
+}
+
+/** Cached latest-release check served by the gateway. */
+export function useUpdateStatus() {
+  return useQuery<UpdateStatus, ApiErrorShape>({
+    queryKey: queryKeys.system.update,
+    queryFn: (context) =>
+      consoleRequest<UpdateStatus>("/system/update", { signal: querySignal(context) }),
+    staleTime: 15 * 60_000,
+    refetchInterval: 15 * 60_000,
+    retry: 1,
+  });
+}
+
 /** Loads the current signed-in console user, including `isPlatformAdmin`,
  * so pages can hide (never solely rely on hiding — the server remains the
  * real enforcement) controls the user's scope cannot use. */

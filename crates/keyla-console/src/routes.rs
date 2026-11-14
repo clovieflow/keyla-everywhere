@@ -433,6 +433,10 @@ pub fn console_router_with_policy(pool: PgPool, policy: Option<SessionCookiePoli
             get(crate::observability::system_health),
         )
         .route(
+            "/console/api/system/update",
+            get(crate::observability::update_status),
+        )
+        .route(
             "/console/api/system/usage",
             get(crate::observability::usage),
         )

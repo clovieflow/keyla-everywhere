@@ -1,11 +1,14 @@
 //! Observability reads for the console: system health and usage analytics.
 
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use chrono::{DateTime, SecondsFormat, Utc};
+use keyla_config::Env;
 use serde_json::{Value, json};
 use sqlx::{Row, postgres::PgRow};
 
@@ -14,6 +17,9 @@ use crate::routes::ConsoleState;
 
 const HEALTH_WINDOW_HOURS: i64 = 24;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const UPDATE_RELEASE_URL: &str =
+    "https://api.github.com/repos/clovieflow/keyla-everywhere/releases/latest";
+const UPDATE_CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
 const GATEWAY_ERROR_PREDICATE: &str = "(status IN ('failed','truncated') AND (http_status IS NULL OR (http_status >= 500 AND http_status NOT IN (503,529))))";
 
@@ -53,6 +59,167 @@ fn process_metrics() -> (u64, f64, u64, usize) {
     let total_memory = system.total_memory();
     let cores = system.cpus().len().max(1);
     (rss, cpu, total_memory, cores)
+}
+
+struct ReleaseCache {
+    fetched_at: Instant,
+    value: Value,
+}
+
+static RELEASE_CACHE: OnceLock<Mutex<Option<ReleaseCache>>> = OnceLock::new();
+
+fn version_parts(value: &str) -> (Vec<u64>, Option<String>) {
+    let value = value.trim().trim_start_matches(['v', 'V']);
+    let (core, suffix) = value
+        .split_once('-')
+        .map(|(core, suffix)| (core, Some(suffix.to_owned())))
+        .unwrap_or((value, None));
+    (
+        core.split('+')
+            .next()
+            .unwrap_or_default()
+            .split('.')
+            .map(|part| part.parse::<u64>().unwrap_or(0))
+            .collect(),
+        suffix,
+    )
+}
+
+fn version_is_newer(latest: &str, current: &str) -> bool {
+    let (latest_core, latest_suffix) = version_parts(latest);
+    let (current_core, current_suffix) = version_parts(current);
+    for index in 0..latest_core.len().max(current_core.len()) {
+        let left = latest_core.get(index).copied().unwrap_or(0);
+        let right = current_core.get(index).copied().unwrap_or(0);
+        if left != right {
+            return left > right;
+        }
+    }
+    match (latest_suffix.as_deref(), current_suffix.as_deref()) {
+        (None, None) => false,
+        (None, Some(_)) => true,
+        (Some(_), None) => false,
+        (Some(latest), Some(current)) => latest > current,
+    }
+}
+
+fn update_check_disabled() -> bool {
+    keyla_config::ProcessEnv
+        .get("KEYLA_UPDATE_CHECK")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "0" | "false" | "off" | "no"
+            )
+        })
+        .unwrap_or(false)
+}
+
+async fn release_status() -> Value {
+    if update_check_disabled() {
+        return json!({
+            "latestVersion": null,
+            "updateAvailable": false,
+            "checkDisabled": true,
+        });
+    }
+    {
+        let cache = RELEASE_CACHE.get_or_init(|| Mutex::new(None));
+        if let Ok(guard) = cache.lock() {
+            if let Some(cached) = guard.as_ref() {
+                if cached.fetched_at.elapsed() < UPDATE_CACHE_TTL {
+                    return cached.value.clone();
+                }
+            }
+        }
+    }
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            return json!({
+                "latestVersion": null,
+                "updateAvailable": false,
+                "checkFailed": true,
+                "error": error.to_string(),
+            });
+        }
+    };
+    let value = match client
+        .get(UPDATE_RELEASE_URL)
+        .header(reqwest::header::USER_AGENT, "keyla-everywhere-update-check")
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .send()
+        .await
+    {
+        Ok(response) if response.status() == reqwest::StatusCode::NOT_FOUND => json!({
+            "latestVersion": null,
+            "updateAvailable": false,
+        }),
+        Ok(response) if response.status().is_success() => {
+            let payload: Value = response.json().await.unwrap_or(Value::Null);
+            let latest = payload
+                .get("tag_name")
+                .and_then(Value::as_str)
+                .map(|tag| tag.trim_start_matches(['v', 'V']).to_owned());
+            let available = latest
+                .as_deref()
+                .is_some_and(|latest| version_is_newer(latest, VERSION));
+            json!({
+                "latestVersion": latest,
+                "updateAvailable": available,
+                "releaseUrl": payload.get("html_url").cloned().unwrap_or(Value::Null),
+                "releaseName": payload.get("name").cloned().unwrap_or(Value::Null),
+                "publishedAt": payload.get("published_at").cloned().unwrap_or(Value::Null),
+            })
+        }
+        Ok(response) => json!({
+            "latestVersion": null,
+            "updateAvailable": false,
+            "checkFailed": true,
+            "statusCode": response.status().as_u16(),
+        }),
+        Err(error) => json!({
+            "latestVersion": null,
+            "updateAvailable": false,
+            "checkFailed": true,
+            "error": error.to_string(),
+        }),
+    };
+    let cache = RELEASE_CACHE.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = cache.lock() {
+        *guard = Some(ReleaseCache {
+            fetched_at: Instant::now(),
+            value: value.clone(),
+        });
+    }
+    value
+}
+
+/// `GET /console/api/system/update` — cached latest GitHub release status.
+pub async fn update_status(State(state): State<ConsoleState>, headers: HeaderMap) -> Response {
+    if let Err(response) = authorize_tenant(&state.pool, &headers, "dashboard:read").await {
+        return response;
+    }
+    let release = release_status().await;
+    let latest = release.get("latestVersion").and_then(Value::as_str);
+    let update_available = latest.is_some_and(|latest| version_is_newer(latest, VERSION));
+    console_response(
+        StatusCode::OK,
+        json!({
+            "currentVersion": VERSION,
+            "latestVersion": latest,
+            "updateAvailable": update_available,
+            "releaseUrl": release.get("releaseUrl").cloned().unwrap_or(Value::Null),
+            "releaseName": release.get("releaseName").cloned().unwrap_or(Value::Null),
+            "publishedAt": release.get("publishedAt").cloned().unwrap_or(Value::Null),
+            "checkFailed": release.get("checkFailed").and_then(Value::as_bool).unwrap_or(false),
+            "checkDisabled": release.get("checkDisabled").and_then(Value::as_bool).unwrap_or(false),
+            "checkedAt": iso(Utc::now()),
+        }),
+    )
 }
 
 /// `GET /console/api/system/health`.
@@ -1106,4 +1273,20 @@ pub async fn performance(State(state): State<ConsoleState>, headers: HeaderMap) 
             "memory_bytes": {"process": rss},
         }),
     )
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::version_is_newer;
+
+    #[test]
+    fn compares_release_versions_without_floating_point_or_pre_release_suffixes() {
+        assert!(version_is_newer("2.4.0", "2.3.0"));
+        assert!(version_is_newer("v2.3.1", "2.3.0-keyla.1"));
+        assert!(version_is_newer("3.0", "2.9.9"));
+        assert!(version_is_newer("2.3.0", "2.3.0-keyla.1"));
+        assert!(version_is_newer("2.3.0-keyla.2", "2.3.0-keyla.1"));
+        assert!(!version_is_newer("2.2.9", "2.3.0"));
+        assert!(!version_is_newer("not-a-version", "2.3.0"));
+    }
 }

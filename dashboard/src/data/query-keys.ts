@@ -14,6 +14,7 @@ export const queryKeys = {
     readiness: ["console", "system", "readiness"] as const,
     /** Public `/health/ready` probe; a different question from the snapshot. */
     readinessProbe: ["console", "system", "readiness-probe"] as const,
+    update: ["console", "system", "update"] as const,
   },
   usageAnalytics: {
     summary: (period: string) => ["console", "usage", "summary", period] as const,
