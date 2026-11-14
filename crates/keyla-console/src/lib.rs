@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Console authentication, sessions, and API domains.
 
 pub mod access;

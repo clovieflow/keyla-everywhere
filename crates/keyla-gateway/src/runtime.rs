@@ -63,14 +63,31 @@ impl GatewayRuntime {
     }
 }
 
-/// Readiness probe backed by a live pool and the migration ledger.
+/// Readiness probe backed by a live pool, the migration ledger, and the
+/// optional external Redis admission backend.
 pub struct DatabaseReadiness {
     pool: PgPool,
+    redis: Option<keyla_security::redis_admission::RedisAdmission>,
+    redis_configured: bool,
 }
 
 impl DatabaseReadiness {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            redis: None,
+            redis_configured: false,
+        }
+    }
+
+    pub fn with_redis(
+        mut self,
+        redis: Option<keyla_security::redis_admission::RedisAdmission>,
+        configured: bool,
+    ) -> Self {
+        self.redis = redis;
+        self.redis_configured = configured;
+        self
     }
 }
 
@@ -88,9 +105,19 @@ impl crate::app::ReadinessProbe for DatabaseReadiness {
             let applied = keyla_db::ledger_status_embedded(&self.pool)
                 .await
                 .unwrap_or(false);
+            let redis = if !self.redis_configured {
+                crate::app::DependencyStatus::Connected
+            } else {
+                match &self.redis {
+                    Some(admission) if admission.ping().await => {
+                        crate::app::DependencyStatus::Connected
+                    }
+                    _ => crate::app::DependencyStatus::Disconnected,
+                }
+            };
             crate::app::Readiness {
                 db: crate::app::DependencyStatus::Connected,
-                redis: crate::app::DependencyStatus::Connected,
+                redis,
                 migrations: Some(if applied {
                     crate::app::MigrationStatus::Applied
                 } else {

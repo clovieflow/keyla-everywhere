@@ -68,6 +68,10 @@ pub async fn run() -> Result<()> {
             }
             _ => None,
         };
+        let redis_configured = env
+            .get("REDIS_URL")
+            .is_some_and(|value| !value.trim().is_empty());
+        let readiness_redis = redis_admission.clone();
         let runtime = Arc::new(
             GatewayRuntime::new(pool.clone(), redis_admission)
                 .context("cannot build gateway runtime")?,
@@ -86,7 +90,7 @@ pub async fn run() -> Result<()> {
         }
         AppState::new(
             StaticAssets::new(&dashboard_dist),
-            Arc::new(DatabaseReadiness::new(pool)),
+            Arc::new(DatabaseReadiness::new(pool).with_redis(readiness_redis, redis_configured)),
         )
         .with_runtime(runtime)
     } else {

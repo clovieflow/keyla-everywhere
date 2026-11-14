@@ -4,15 +4,13 @@ import {
   Copy,
   Gauge,
   Globe,
-  Info,
   MemoryStick,
   RefreshCw,
   Server,
   Timer,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "../components/ui/button";
-import { Switch } from "../components/ui/switch";
 import { Inline } from "../components/ui/inline";
 import { Stack } from "../components/ui/stack";
 import { ApiKeysPanel } from "../components/ApiKeysPanel";
@@ -44,17 +42,6 @@ function SystemOverviewPanel({
 }) {
   const healthQuery = useSystemHealth();
   const poolsQuery = useNetworkPools();
-  const KEYLA_OVERVIEW_LOW_STRESS_KEY = "keyla:overview:low-stress";
-  const readLowStress = (): boolean => {
-    if (typeof window === "undefined" || !window.localStorage) return true;
-    const raw = window.localStorage.getItem(KEYLA_OVERVIEW_LOW_STRESS_KEY);
-    return raw === null ? true : raw === "1" || raw === "true";
-  };
-  const [lowStress, setLowStress] = useState<boolean>(() => readLowStress());
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(KEYLA_OVERVIEW_LOW_STRESS_KEY, lowStress ? "1" : "0");
-  }, [lowStress]);
   const health = healthQuery.data;
   const pools = poolsQuery.data ?? [];
 
@@ -66,24 +53,14 @@ function SystemOverviewPanel({
     .filter((p) => p.status === "active")
     .reduce((sum, p) => sum + (p.maxInflight || 10), 0);
 
-  const rawBytes = health?.memory_bytes ?? 0;
-  // `Math.max(0, …)` guards the subtraction as well: the gateway now clamps its
-  // counters so they cannot exceed RSS, but a figure from an older build must
-  // not render as a negative runtime slice.
-  const heapUsed = Math.max(0, health?.heap_used_bytes ?? 0);
-  const external = Math.max(0, health?.external_bytes ?? 0);
-  // Caps Bun engine runtime at 20 MB when Low stress is on; JS heap & buffers stay real
-  const nativeBytes = Math.max(0, rawBytes - heapUsed - external);
-  const displayNativeBytes = lowStress ? Math.min(20 * 1024 * 1024, nativeBytes) : nativeBytes;
-  const displayRssBytes = heapUsed + displayNativeBytes + external;
-
-  const heapPct = displayRssBytes > 0 ? (heapUsed / displayRssBytes) * 100 : 0;
-  const runtimePct = displayRssBytes > 0 ? (displayNativeBytes / displayRssBytes) * 100 : 0;
-  const externalPct = displayRssBytes > 0 ? (external / displayRssBytes) * 100 : 0;
-
-  const jsHeapMb = (heapUsed / (1024 * 1024)).toFixed(1);
-  const bunRuntimeMb = (displayNativeBytes / (1024 * 1024)).toFixed(1);
-  const buffersMb = (external / (1024 * 1024)).toFixed(1);
+  const rssBytes = Math.max(0, health?.memory_bytes ?? 0);
+  const memoryLimitBytes = Math.max(1, health?.memory_limit_bytes ?? 0);
+  const memoryPercent = Math.max(0, Math.min(100, health?.memory_percent ?? 0));
+  const systemTotalBytes = Math.max(0, health?.system_memory_bytes ?? 0);
+  const systemUsedBytes = Math.max(0, health?.system_memory_used_bytes ?? 0);
+  const systemMemoryPercent =
+    systemTotalBytes > 0 ? Math.min(100, (systemUsedBytes / systemTotalBytes) * 100) : 0;
+  const virtualMemoryBytes = Math.max(0, health?.virtual_memory_bytes ?? 0);
   const p95Latency = health?.latency_p95_ms ?? 0;
   const avgLatency = health?.latency_avg_ms ?? 0;
   const tailGap = Math.max(0, p95Latency - avgLatency);
@@ -141,70 +118,40 @@ function SystemOverviewPanel({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    Bun Runtime · Process
+                    Rust gateway · process
                   </p>
-                </div>
-              </Inline>
-              <Inline gap="5px" style={{ flexShrink: 0 }}>
-                <div className="info-tooltip-wrap" tabIndex={0} aria-label="Low stress info">
-                  <span
-                    style={{
-                      fontSize: "9px",
-                      color: "var(--text-tertiary)",
-                      fontWeight: 500,
-                      marginRight: "3px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Low stress
-                  </span>
-                  <Info size={12} style={{ color: "var(--text-tertiary)" }} />
-                  <span className="info-tooltip-popup">
-                    Caps Bun engine at 20 MB — JS heap is your app, other metrics stay real.
-                  </span>
-                </div>
-                <div style={{ transform: "scale(0.75)", transformOrigin: "right center" }}>
-                  <Switch
-                    checked={lowStress}
-                    onChange={setLowStress}
-                    aria-label="Low stress mode: cap Bun engine at 20 MB"
-                  />
                 </div>
               </Inline>
             </div>
 
             <div className="overview-card-primary">
-              <span className="overview-card-primary-value">{formatBytes(displayRssBytes)}</span>
+              <span className="overview-card-primary-value">{formatBytes(rssBytes)}</span>
               <span className="overview-card-primary-label">RSS</span>
             </div>
             <p className="overview-card-summary">
-              RSS is the full Keyla Everywhere process — Bun runtime, JIT heap, and buffers combined.
+              Rust gateway process · memory limit {formatBytes(memoryLimitBytes)}
+              {"\n"}Memory {formatBytes(systemUsedBytes)} / {formatBytes(systemTotalBytes)} system
             </p>
             <div className="overview-card-footer">
               <div className="overview-mini-grid">
                 <div className="overview-mini">
                   <div className="overview-mini-label">
-                    <span>JS heap</span>
-                    <span style={{ color: "var(--purple)" }}>{jsHeapMb}M</span>
+                    <span>Process limit</span>
+                    <span style={{ color: "var(--purple)" }}>{memoryPercent.toFixed(0)}%</span>
                   </div>
                   <div className="overview-bar" style={{ marginTop: "4px" }}>
                     <div
                       className="overview-bar-fill overview-bar-fill--purple"
-                      style={{ width: `${Math.min(100, heapPct)}%` }}
+                      style={{ width: `${memoryPercent}%` }}
                     />
                   </div>
                 </div>
                 <div className="overview-mini">
                   <div className="overview-mini-label">
-                    <span>Bun runtime</span>
-                    <span style={{ color: "var(--green)" }}>{bunRuntimeMb}M</span>
+                    <span>Virtual</span>
+                    <span style={{ color: "var(--green)" }}>{formatBytes(virtualMemoryBytes)}</span>
                   </div>
-                  <div className="overview-bar" style={{ marginTop: "4px" }}>
-                    <div
-                      className="overview-bar-fill overview-bar-fill--green"
-                      style={{ width: `${Math.min(100, runtimePct)}%` }}
-                    />
-                  </div>
+                  <div className="overview-mini-caption">address space</div>
                 </div>
               </div>
 
@@ -217,15 +164,13 @@ function SystemOverviewPanel({
                     color: "var(--text-tertiary)",
                   }}
                 >
-                  <span>Buffers & Mimalloc</span>
-                  <span>
-                    {buffersMb}M ({externalPct.toFixed(0)}%)
-                  </span>
+                  <span>System memory</span>
+                  <span>{systemMemoryPercent.toFixed(0)}%</span>
                 </div>
                 <div className="overview-bar">
                   <div
                     className="overview-bar-fill overview-bar-fill--blue"
-                    style={{ width: `${Math.min(100, externalPct)}%` }}
+                    style={{ width: `${systemMemoryPercent}%` }}
                   />
                 </div>
               </div>
@@ -441,7 +386,7 @@ function SystemOverviewPanel({
                 <div>
                   <h3 style={{ fontSize: "12px", fontWeight: 700 }}>Uptime</h3>
                   <p style={{ fontSize: "9.5px", color: "var(--text-tertiary)" }}>
-                    System info · Bun
+                    System info · Rust
                   </p>
                 </div>
               </Inline>
@@ -455,7 +400,7 @@ function SystemOverviewPanel({
             </div>
             <p className="overview-card-summary">
               PID {health?.pid ?? "—"} · {health?.cpu_cores ?? "—"} cores ·{" "}
-              {health?.platform ?? "Bun"}
+              {health?.platform ?? "—"}
               {"\n"}Atomic local admission · Zero-overhead sync
             </p>
 

@@ -3498,6 +3498,187 @@
   background: color-mix(in srgb, var(--green) 8%, var(--surface-2));
 }
 
+/* ── Expanded health page ───────────────────────────────────────────────── */
+.health-meter {
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  border: 1px solid var(--inner-border);
+}
+
+.health-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur-micro) ease;
+}
+
+.health-meter-fill--green { background: var(--green); }
+.health-meter-fill--orange { background: var(--orange); }
+.health-meter-fill--red { background: var(--red); }
+
+.health-meter-row {
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.health-readiness-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.health-readiness-summary strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.health-readiness-list {
+  display: grid;
+  gap: 6px;
+}
+
+.health-readiness-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--inner-border);
+  border-radius: 10px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--surface-2);
+  transition: border-color var(--dur-micro) ease, background-color var(--dur-micro) ease;
+}
+
+.health-readiness-item:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.health-readiness-item[data-state="todo"] {
+  border-color: color-mix(in srgb, var(--orange) 35%, var(--inner-border));
+}
+
+.health-readiness-item[data-state="done"] .health-readiness-mark {
+  color: var(--green);
+}
+
+.health-readiness-item[data-state="todo"] .health-readiness-mark {
+  color: var(--orange);
+}
+
+.health-readiness-item[data-state="unknown"] .health-readiness-mark {
+  color: var(--text-tertiary);
+}
+
+.health-readiness-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.health-readiness-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.health-readiness-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.health-readiness-optional {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.health-readiness-detail,
+.health-readiness-remediation {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.health-readiness-remediation {
+  color: var(--orange);
+}
+
+.health-readiness-arrow {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.health-endpoint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--inner-border);
+  color: inherit;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.health-endpoint:last-child {
+  border-bottom: none;
+}
+
+.health-endpoint:hover code {
+  color: var(--accent);
+}
+
+.health-endpoint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.health-endpoint small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.health-release-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.health-release-link:hover {
+  text-decoration: underline;
+}
+
 /* ── Route simulator ────────────────────────────────────────────────────────
    Read-only notice is a first-class element, not a footnote: the whole page
    is only trustworthy if the operator knows nothing was dispatched. */

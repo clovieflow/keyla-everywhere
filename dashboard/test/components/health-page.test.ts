@@ -123,4 +123,49 @@ describe("Health page completeness", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(healthSource).toContain('t("health.live")');
   });
+
+  test("renders the measured process and storage fields instead of JS heap placeholders", () => {
+    // The Rust gateway has no V8 heap. A health page that renders
+    // `heap_used_bytes` prints a truthful-looking zero for a metric that does
+    // not exist, so the expanded page uses the real process fields instead.
+    for (const field of [
+      "database_latency_ms",
+      "database_pool_size",
+      "database_pool_idle",
+      "virtual_memory_bytes",
+      "system_memory_used_bytes",
+      "thread_count",
+      "load_average_1",
+      "error_rate_percent",
+      "latency_p50_ms",
+      "input_tokens",
+      "output_tokens",
+    ]) {
+      expect(healthSource).toContain(field);
+    }
+    expect(healthSource).not.toContain("heap_used_bytes");
+  });
+
+  test("shows the operator readiness checklist and request activity", () => {
+    expect(healthSource).toContain("useReadiness()");
+    expect(healthSource).toContain("readiness.steps");
+    expect(healthSource).toContain("useUsageChart(\"24h\")");
+    expect(healthSource).toContain("<RequestActivity");
+  });
+
+  test("the expanded labels exist in both locales", () => {
+    for (const key of [
+      "health.readiness",
+      "health.performance",
+      "health.databaseLatency",
+      "health.virtualMemory",
+      "health.errorRate",
+      "health.activityTitle",
+      "health.release",
+      "health.streamConnected",
+    ]) {
+      const occurrences = i18n.split(`"${key}"`).length - 1;
+      expect(occurrences).toBe(2);
+    }
+  });
 });

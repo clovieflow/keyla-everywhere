@@ -483,7 +483,12 @@ async fn ready(State(state): State<AppState>) -> Response {
     if db_ok && redis_ok && migrations_ok {
         return json_response(
             StatusCode::OK,
-            json!({ "status": "ready", "db": "connected" }),
+            json!({
+                "status": "ready",
+                "db": readiness.db.as_str(),
+                "redis": readiness.redis.as_str(),
+                "migrations": readiness.migrations.map(MigrationStatus::as_str),
+            }),
         );
     }
 

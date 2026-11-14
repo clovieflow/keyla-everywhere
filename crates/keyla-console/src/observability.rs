@@ -47,20 +47,73 @@ fn iso(value: DateTime<Utc>) -> String {
     value.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
-fn process_metrics() -> (u64, f64, u64, usize) {
+struct ProcessMetrics {
+    rss: u64,
+    virtual_memory: u64,
+    cpu_percent: f64,
+    total_memory: u64,
+    used_memory: u64,
+    available_memory: u64,
+    cores: usize,
+    threads: u64,
+    load_average: (f64, f64, f64),
+}
+
+fn process_metrics() -> ProcessMetrics {
+    use std::sync::OnceLock;
     use sysinfo::{Pid, ProcessesToUpdate, System};
-    let mut system = System::new();
+
+    static SYSTEM: OnceLock<Mutex<System>> = OnceLock::new();
+    let mut system = SYSTEM
+        .get_or_init(|| Mutex::new(System::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     system.refresh_processes(ProcessesToUpdate::All, true);
     system.refresh_memory();
+    system.refresh_cpu_all();
     let pid = Pid::from_u32(std::process::id());
     let process = system.process(pid);
     let rss = process.map(|process| process.memory()).unwrap_or(0);
+    let virtual_memory = process.map(|process| process.virtual_memory()).unwrap_or(0);
     let cpu = process
         .map(|process| f64::from(process.cpu_usage()))
         .unwrap_or(0.0);
+    let threads = process
+        .and_then(|process| process.tasks().map(|tasks| tasks.len() as u64))
+        .unwrap_or(0);
+    let load = System::load_average();
     let total_memory = system.total_memory();
-    let cores = system.cpus().len().max(1);
-    (rss, cpu, total_memory, cores)
+    let used_memory = system.used_memory();
+    let reported_available = system.available_memory();
+    let available_memory = if reported_available == 0 {
+        total_memory.saturating_sub(used_memory)
+    } else {
+        reported_available
+    };
+    ProcessMetrics {
+        rss,
+        virtual_memory,
+        cpu_percent: cpu,
+        total_memory,
+        used_memory,
+        available_memory,
+        cores: system.cpus().len().max(1),
+        threads,
+        load_average: (load.one, load.five, load.fifteen),
+    }
+}
+
+struct HealthStats {
+    total: i64,
+    errors: i64,
+    avg: f64,
+    p50: f64,
+    p95: f64,
+    p99: f64,
+    cached_tokens: i64,
+    input_tokens: i64,
+    output_tokens: i64,
+    tokens_per_sec: f64,
 }
 
 struct ReleaseCache {
@@ -250,7 +303,7 @@ pub async fn system_health_stream(
         yield Ok::<Event, std::convert::Infallible>(
             Event::default().event("init").json_data(initial).unwrap_or_default(),
         );
-        let mut ticker = tokio::time::interval(Duration::from_millis(250));
+        let mut ticker = tokio::time::interval(Duration::from_millis(2_000));
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             ticker.tick().await;
@@ -264,24 +317,27 @@ pub async fn system_health_stream(
 }
 
 async fn health_value(state: &ConsoleState, tenant: &str) -> Value {
-    let (rss, cpu_percent, total_memory, cores) = process_metrics();
+    let process = process_metrics();
     let configured_limit =
         keyla_config::resolve_memory_limit_override_bytes(&keyla_config::ProcessEnv)
             .ok()
             .flatten()
             .map(|value| value as u64);
-    let memory_limit = configured_limit.unwrap_or(total_memory).max(1);
-    let memory_percent = ((rss as f64 / memory_limit as f64) * 10_000.0).round() / 100.0;
+    let memory_limit = configured_limit.unwrap_or(process.total_memory).max(1);
+    let memory_percent = ((process.rss as f64 / memory_limit as f64) * 10_000.0).round() / 100.0;
 
     let since = Utc::now() - chrono::Duration::hours(HEALTH_WINDOW_HOURS);
+    let database_started = Instant::now();
     let row: Result<PgRow, sqlx::Error> = sqlx::query(&format!(
         "SELECT count(*)::bigint AS total,
                 count(*) FILTER (WHERE {GATEWAY_ERROR_PREDICATE})::bigint AS errors,
                 coalesce(avg(latency_ms), 0)::float8 AS avg,
+                coalesce(percentile_cont(0.50) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p50,
                 coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p95,
                 coalesce(percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p99,
                 coalesce(sum(cached_input_tokens) FILTER (WHERE cached_input_tokens IS NOT NULL), 0)::bigint AS cached_tokens,
-                coalesce(sum(input_tokens) FILTER (WHERE cached_input_tokens IS NOT NULL), 0)::bigint AS input_tokens,
+                coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
+                coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
                 coalesce(avg(tokens_per_sec) FILTER (WHERE tokens_per_sec IS NOT NULL), 0)::float8 AS avg_tokens_per_sec
          FROM telemetry_events
          WHERE tenant_id = $1::uuid AND created_at >= $2"
@@ -290,35 +346,63 @@ async fn health_value(state: &ConsoleState, tenant: &str) -> Value {
     .bind(since)
     .fetch_one(&state.pool)
     .await;
-    let (database_healthy, total, errors, latency_avg, p95, p99, cache_hit, tokens_per_sec) =
-        match row {
-            Ok(row) => {
-                let total: i64 = row.get("total");
-                let errors: i64 = row.get("errors");
-                let avg: f64 = row.get("avg");
-                let p95: f64 = row.get("p95");
-                let p99: f64 = row.get("p99");
-                let cached_tokens: i64 = row.get("cached_tokens");
-                let input_tokens: i64 = row.get("input_tokens");
-                let tokens_per_sec: f64 = row.get("avg_tokens_per_sec");
-                let cache_hit = if input_tokens > 0 {
-                    (cached_tokens as f64 / input_tokens as f64) * 100.0
-                } else {
-                    0.0
-                };
-                (
-                    true,
-                    total,
-                    errors,
-                    avg.round() as i64,
-                    p95.round() as i64,
-                    p99.round() as i64,
-                    (cache_hit * 100.0).round() / 100.0,
-                    tokens_per_sec,
-                )
-            }
-            Err(_) => (false, 0, 0, 0, 0, 0, 0.0, 0.0),
-        };
+    let database_latency_ms =
+        (database_started.elapsed().as_secs_f64() * 1_000.0 * 100.0).round() / 100.0;
+    let (database_healthy, stats) = match row {
+        Ok(row) => {
+            let input_tokens: i64 = row.get("input_tokens");
+            let cached_tokens: i64 = row.get("cached_tokens");
+            (
+                true,
+                HealthStats {
+                    total: row.get("total"),
+                    errors: row.get("errors"),
+                    avg: row.get("avg"),
+                    p50: row.get("p50"),
+                    p95: row.get("p95"),
+                    p99: row.get("p99"),
+                    cached_tokens,
+                    input_tokens,
+                    output_tokens: row.get("output_tokens"),
+                    tokens_per_sec: row.get::<f64, _>("avg_tokens_per_sec").max(0.0),
+                },
+            )
+        }
+        Err(_) => (
+            false,
+            HealthStats {
+                total: 0,
+                errors: 0,
+                avg: 0.0,
+                p50: 0.0,
+                p95: 0.0,
+                p99: 0.0,
+                cached_tokens: 0,
+                input_tokens: 0,
+                output_tokens: 0,
+                tokens_per_sec: 0.0,
+            },
+        ),
+    };
+    let cache_hit = if stats.input_tokens > 0 {
+        (((stats.cached_tokens as f64 / stats.input_tokens as f64) * 100.0).min(100.0) * 100.0)
+            .round()
+            / 100.0
+    } else {
+        0.0
+    };
+    let error_rate = if stats.total > 0 {
+        ((stats.errors as f64 / stats.total as f64) * 10_000.0).round() / 100.0
+    } else {
+        0.0
+    };
+    let success_count = (stats.total - stats.errors).max(0);
+    let redis_configured = keyla_config::ProcessEnv
+        .get("REDIS_URL")
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    // Lite mode runs on the in-process admission backend; an external Redis is
+    // reported as configured here and its live status by `/health/ready`.
     let redis_healthy = true;
     let status = if !database_healthy {
         "unhealthy"
@@ -331,26 +415,47 @@ async fn health_value(state: &ConsoleState, tenant: &str) -> Value {
     json!({
         "version": version,
         "status": status,
+        "window_hours": HEALTH_WINDOW_HOURS,
         "uptime_seconds": state.started.elapsed().as_secs(),
         "database_healthy": database_healthy,
+        "database_latency_ms": database_latency_ms,
+        "database_pool_size": state.pool.size(),
+        "database_pool_idle": state.pool.num_idle(),
         "redis_healthy": redis_healthy,
-        "memory_bytes": rss,
+        "redis_configured": redis_configured,
+        "redis_mode": if redis_configured { "external" } else { "in-memory" },
+        "memory_bytes": process.rss,
+        "virtual_memory_bytes": process.virtual_memory,
         "memory_percent": memory_percent,
         "memory_limit_bytes": memory_limit,
+        "system_memory_bytes": process.total_memory,
+        "system_memory_used_bytes": process.used_memory,
+        "system_memory_available_bytes": process.available_memory,
         "heap_used_bytes": 0,
         "heap_total_bytes": 0,
         "external_bytes": 0,
-        "cpu_percent": (cpu_percent * 100.0).round() / 100.0,
-        "cpu_cores": cores,
+        "cpu_percent": (process.cpu_percent * 100.0).round() / 100.0,
+        "cpu_cores": process.cores,
+        "thread_count": process.threads,
+        "load_average_1": (process.load_average.0 * 100.0).round() / 100.0,
+        "load_average_5": (process.load_average.1 * 100.0).round() / 100.0,
+        "load_average_15": (process.load_average.2 * 100.0).round() / 100.0,
         "pid": std::process::id(),
         "platform": std::env::consts::OS,
-        "request_count": total,
-        "error_count": errors,
-        "latency_avg_ms": latency_avg,
-        "latency_p95_ms": p95,
-        "latency_p99_ms": p99,
+        "architecture": std::env::consts::ARCH,
+        "request_count": stats.total,
+        "success_count": success_count,
+        "error_count": stats.errors,
+        "error_rate_percent": error_rate,
+        "latency_avg_ms": stats.avg.round() as i64,
+        "latency_p50_ms": stats.p50.round() as i64,
+        "latency_p95_ms": stats.p95.round() as i64,
+        "latency_p99_ms": stats.p99.round() as i64,
         "cache_hit_rate_percent": cache_hit,
-        "avg_tokens_per_sec": (tokens_per_sec * 100.0).round() / 100.0,
+        "input_tokens": stats.input_tokens,
+        "cached_tokens": stats.cached_tokens,
+        "output_tokens": stats.output_tokens,
+        "avg_tokens_per_sec": (stats.tokens_per_sec * 100.0).round() / 100.0,
     })
 }
 
@@ -1296,14 +1401,14 @@ pub async fn performance(State(state): State<ConsoleState>, headers: HeaderMap) 
     if let Err(error) = crate::access::require_scope(&access, "platform:admin") {
         return error_response(StatusCode::FORBIDDEN, "insufficient_scope", &error.message);
     }
-    let (rss, _, _, _) = process_metrics();
+    let process = process_metrics();
     json_response(
         StatusCode::OK,
         json!({
             "adapter_load_ms": {},
             "model_catalog_load_ms": {},
             "network_call_latency_ms": {},
-            "memory_bytes": {"process": rss},
+            "memory_bytes": {"process": process.rss},
         }),
     )
 }

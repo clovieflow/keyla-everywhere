@@ -151,6 +151,17 @@ impl RedisAdmission {
         Ok(Self { connection })
     }
 
+    /// A live dependency check for readiness. The connection manager reconnects
+    /// transparently, so a successful PING also proves the configured URL is
+    /// still reachable.
+    pub async fn ping(&self) -> bool {
+        let mut connection = self.connection.clone();
+        redis::cmd("PING")
+            .query_async::<String>(&mut connection)
+            .await
+            .is_ok()
+    }
+
     fn daily_bucket(now_ms: i64) -> String {
         chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_ms)
             .unwrap_or_else(chrono::Utc::now)
