@@ -123,6 +123,39 @@ fn candidate_matches(candidate: &RouteCandidate, model: &str) -> bool {
     }
 }
 
+/// Candidates for one requested model id. A provider-qualified id wins. When
+/// no provider owns that prefix, fall back to the exact model id so advertised
+/// bare ids that contain `/` (for example `Flara/mercury-3`) still route.
+fn candidates_for_model(
+    snapshot: &RouteSnapshot,
+    model_id: &str,
+    tenant_id: Option<&str>,
+) -> Vec<RouteCandidate> {
+    let tenant_matches = |candidate: &&RouteCandidate| {
+        candidate.tenant_id.is_none() || candidate.tenant_id.as_deref() == tenant_id
+    };
+    let mut group: Vec<RouteCandidate> = snapshot
+        .candidates
+        .iter()
+        .filter(|candidate| candidate_matches(candidate, model_id))
+        .filter(tenant_matches)
+        .cloned()
+        .collect();
+    if group.is_empty() {
+        let (provider_id, _) = parse_model(model_id);
+        if provider_id.is_some() {
+            group = snapshot
+                .candidates
+                .iter()
+                .filter(|candidate| candidate.model_id == model_id)
+                .filter(tenant_matches)
+                .cloned()
+                .collect();
+        }
+    }
+    group
+}
+
 fn normalize_alias_key(requested: &str, aliases: Option<&HashMap<String, String>>) -> String {
     let Some(aliases) = aliases else {
         return requested.to_owned();
@@ -521,31 +554,18 @@ impl RoutingEngine {
             .filter(|id| seen_ids.insert(id.clone()))
             .collect();
 
-        let tenant_matches = |candidate: &&RouteCandidate| {
-            candidate.tenant_id.is_none() || candidate.tenant_id.as_deref() == tenant_id
-        };
-        let mut matching: Vec<RouteCandidate> = snapshot
-            .candidates
+        let mut matching: Vec<RouteCandidate> = model_ids
             .iter()
-            .filter(|candidate| model_ids.iter().any(|id| candidate_matches(candidate, id)))
-            .filter(tenant_matches)
-            .cloned()
+            .flat_map(|id| candidates_for_model(snapshot, id, tenant_id))
             .collect();
+        let mut seen_candidates = BTreeSet::new();
+        matching.retain(|candidate| seen_candidates.insert(candidate_identity(candidate)));
 
         let mut unmatched_members = Vec::new();
         if let Some(combo) = combo {
             let per_id: Vec<(String, Vec<RouteCandidate>)> = model_ids
                 .iter()
-                .map(|id| {
-                    (
-                        id.clone(),
-                        matching
-                            .iter()
-                            .filter(|candidate| candidate_matches(candidate, id))
-                            .cloned()
-                            .collect(),
-                    )
-                })
+                .map(|id| (id.clone(), candidates_for_model(snapshot, id, tenant_id)))
                 .collect();
             unmatched_members = per_id
                 .iter()
@@ -1027,6 +1047,28 @@ mod tests {
             .unwrap();
         assert_eq!(plan.provider_id, "azure");
         assert_eq!(plan.candidates.len(), 1);
+    }
+
+    #[test]
+    fn plan_resolves_bare_model_ids_containing_slash() {
+        let snapshot = snapshot_of(vec![candidate("valen", "Flara/mercury-3", "a", None)]);
+        let plan = engine()
+            .plan(&snapshot, PlanInput::new("Flara/mercury-3"))
+            .unwrap();
+        assert_eq!(plan.resolved_model, "Flara/mercury-3");
+        assert_eq!(plan.provider_id, "valen");
+    }
+
+    #[test]
+    fn plan_prefers_provider_prefix_over_a_full_model_id_collision() {
+        let snapshot = snapshot_of(vec![
+            candidate("valen", "Flara/mercury-3", "a", None),
+            candidate("Flara", "mercury-3", "b", None),
+        ]);
+        let plan = engine()
+            .plan(&snapshot, PlanInput::new("Flara/mercury-3"))
+            .unwrap();
+        assert_eq!(plan.provider_id, "Flara");
     }
 
     #[test]
