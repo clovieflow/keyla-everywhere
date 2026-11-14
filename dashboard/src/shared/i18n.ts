@@ -289,6 +289,8 @@ const ID_MESSAGES = {
   "update.currentVersion": "Versi yang berjalan",
   "update.openRelease": "Lihat rilis",
   "update.newBadge": "Ada versi baru",
+  "update.updateTo": "Update {version}",
+  "update.upToDate": "Terbaru",
   "promptInjection.eyebrow": "Kendali / Prompt Injection",
   "promptInjection.title": "Prompt Injection",
   "promptInjection.description":
@@ -964,6 +966,8 @@ const EN_MESSAGES: Readonly<Record<MessageKey, string>> = {
   "update.currentVersion": "Running version",
   "update.openRelease": "View release",
   "update.newBadge": "A new version is available",
+  "update.updateTo": "Update {version}",
+  "update.upToDate": "Up to date",
   "promptInjection.eyebrow": "Control / Prompt Injection",
   "promptInjection.title": "Prompt Injection",
   "promptInjection.description":

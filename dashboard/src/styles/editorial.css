@@ -233,6 +233,46 @@ body::after {
   vertical-align: 1px;
 }
 
+.sidebar-release {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 8px 14px;
+  padding: 7px 9px;
+  border: 1px solid #242424;
+  border-radius: 8px;
+  color: #77726a;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-release:hover {
+  border-color: #3a3a3a;
+  color: #d9d4cb;
+}
+
+.sidebar-release.is-update {
+  border-color: color-mix(in srgb, var(--accent) 50%, #242424);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.sidebar-release-version {
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.sidebar-release-current {
+  opacity: 0.7;
+}
+
+.sidebar-release-update {
+  font-weight: 700;
+}
+
 .nav-group-section {
   margin-top: 19px;
 }

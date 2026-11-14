@@ -36,7 +36,7 @@ import { consoleRequest } from "../data/api";
 import { queryClient } from "../data/query-client";
 import { prefetchRouteIntent } from "../data/route-prefetch";
 import { usePullToRefresh } from "../hooks/use-pull-to-refresh";
-import { useSystemHealth, useUpdateStatus } from "../hooks/system";
+import { useSystemHealth, useUpdateStatus, type UpdateStatus } from "../hooks/system";
 import { useProviders } from "../hooks/providers";
 import { DASHBOARD_RELEASE_LABEL } from "../shared/version";
 import { toast } from "../shared/toast";
@@ -188,10 +188,14 @@ function useSafeSystemHealth() {
   }
 }
 
-function NotificationsPopover({ isHealthy }: { isHealthy: boolean }) {
+function NotificationsPopover({
+  isHealthy,
+  updateStatus,
+}: {
+  isHealthy: boolean;
+  updateStatus: UpdateStatus | undefined;
+}) {
   const t = useT();
-  const update = useUpdateStatus();
-  const updateStatus = update.data;
   const updateAvailable = updateStatus?.updateAvailable === true &&
     typeof updateStatus.latestVersion === "string";
   const [open, setOpen] = useState(false);
@@ -764,6 +768,7 @@ export function DashboardShell({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const healthQuery = useSafeSystemHealth();
+  const updateQuery = useUpdateStatus();
   const providersQuery = useProviders();
   const drawerPresence = usePresence(drawerOpen);
   const pull = usePullToRefresh(() => queryClient.invalidateQueries());
@@ -857,6 +862,30 @@ export function DashboardShell({
             </div>
           </div>
 
+          <a
+            className={`sidebar-release${updateQuery.data?.updateAvailable ? " is-update" : ""}`}
+            href={
+              updateQuery.data?.releaseUrl ??
+              "https://github.com/clovieflow/keyla-everywhere/releases"
+            }
+            target="_blank"
+            rel="noreferrer"
+            title={
+              updateQuery.data?.updateAvailable && updateQuery.data.latestVersion
+                ? t("update.availableBody", { version: updateQuery.data.latestVersion })
+                : t("update.currentVersion")
+            }
+          >
+            <span className="sidebar-release-version">{DASHBOARD_RELEASE_LABEL}</span>
+            {updateQuery.data?.updateAvailable && updateQuery.data.latestVersion ? (
+              <span className="sidebar-release-update">
+                {t("update.updateTo", { version: updateQuery.data.latestVersion })}
+              </span>
+            ) : (
+              <span className="sidebar-release-current">{t("update.upToDate")}</span>
+            )}
+          </a>
+
           <nav style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
             {navigationGroups.map((group) => (
               <SidebarNavGroup
@@ -945,7 +974,7 @@ export function DashboardShell({
                   ⌘K
                 </kbd>
               </button>
-              <NotificationsPopover isHealthy={Boolean(isHealthy)} />
+              <NotificationsPopover isHealthy={Boolean(isHealthy)} updateStatus={updateQuery.data} />
               <span className="topbar-live">{isHealthy ? "Live" : "Offline"}</span>
               <div className="topbar-avatar" aria-hidden="true">
                 {userInitials}
