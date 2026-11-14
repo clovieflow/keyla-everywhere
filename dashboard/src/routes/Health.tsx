@@ -37,7 +37,7 @@ import { useInFlight } from "../hooks/live";
 import { useSystemHealth } from "../hooks/system";
 import { PageHead } from "../components/PageHead";
 import { useT } from "../shared/locale-context";
-import { formatAgo, formatBytes, formatDuration, formatNumber, formatUptime } from "../shared/format";
+import { formatAgo, formatBytes, formatDuration, formatNumber } from "../shared/format";
 import type { MessageKey } from "../shared/i18n";
 
 /** One label/value pair inside a health group. */
@@ -85,10 +85,12 @@ const REMEDIATION_KEY: Readonly<Record<"healthy" | "degraded" | "unhealthy", Mes
 function formatLiveUptime(seconds: number | undefined): string {
   if (seconds === undefined || !Number.isFinite(seconds)) return "—";
   const value = Math.max(0, seconds);
-  if (value >= 3_600) return formatUptime(value);
-  const minutes = Math.floor(value / 60);
-  const remainder = value % 60;
-  const secs = remainder.toFixed(2);
+  const days = Math.floor(value / 86_400);
+  const hours = Math.floor((value % 86_400) / 3_600);
+  const minutes = Math.floor((value % 3_600) / 60);
+  const secs = (value % 60).toFixed(2);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${secs}s`;
+  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
   return minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
 }
 
