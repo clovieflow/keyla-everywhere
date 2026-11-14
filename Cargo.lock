@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-cli"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1487,7 +1487,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-config"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "base64 0.22.1",
  "tempfile",
@@ -1497,7 +1497,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-console"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-core"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "regex",
  "serde",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-db"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "chrono",
  "include_dir",
@@ -1560,7 +1560,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-gateway"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1597,11 +1597,11 @@ dependencies = [
 
 [[package]]
 name = "keyla-observability"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 
 [[package]]
 name = "keyla-protocol"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "keyla-core",
  "regex",
@@ -1612,7 +1612,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-providers"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "aes",
  "async-stream",
@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-routing"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "async-trait",
  "keyla-core",
@@ -1648,7 +1648,7 @@ dependencies = [
 
 [[package]]
 name = "keyla-security"
-version = "2.3.0-keyla.1"
+version = "2.3.1-keyla.1"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

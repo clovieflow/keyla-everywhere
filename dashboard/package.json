@@ -1,6 +1,6 @@
 {
   "name": "keyla-everywhere-dashboard",
-  "version": "2.3.0-keyla.1",
+  "version": "2.3.1-keyla.1",
   "private": true,
   "type": "module",
   "scripts": {
