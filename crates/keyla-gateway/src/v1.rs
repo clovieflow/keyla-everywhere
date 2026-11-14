@@ -2053,6 +2053,16 @@ pub async fn responses(State(state): State<AppState>, request: Request) -> Respo
     proxy(state, request, Surface::Responses).await
 }
 
+fn advertised_model_ids(model_id: &str, provider_id: &str, owner_count: usize) -> Vec<String> {
+    let mut ids = vec![format!("{provider_id}/{model_id}")];
+    // A bare id containing `/` is parsed as `provider/model` by the router.
+    // Returning it would advertise a name that can only 404.
+    if !model_id.contains('/') && owner_count == 1 {
+        ids.push(model_id.to_owned());
+    }
+    ids
+}
+
 /// `GET /v1/models` — the models this key may use, derived from the same
 /// routing snapshot the data plane reads.
 pub async fn list_models(State(state): State<AppState>, request: Request) -> Response {
@@ -2069,49 +2079,55 @@ pub async fn list_models(State(state): State<AppState>, request: Request) -> Res
         model_access_mode: Some(auth.snapshot.model_access_mode),
         model_list: auth.snapshot.model_list.clone(),
     };
+    let visible: Vec<&RouteCandidate> = snapshot
+        .candidates
+        .iter()
+        .filter(|candidate| {
+            (candidate.tenant_id.is_none()
+                || candidate.tenant_id.as_deref() == Some(auth.tenant_id.as_str()))
+                && candidate.health_status != Some(HealthStatus::Disabled)
+        })
+        .collect();
+    let mut owners: std::collections::BTreeMap<&str, std::collections::BTreeSet<&str>> =
+        std::collections::BTreeMap::new();
+    for candidate in &visible {
+        owners
+            .entry(candidate.model_id.as_str())
+            .or_default()
+            .insert(candidate.provider_id.as_str());
+    }
     let mut seen = std::collections::BTreeSet::new();
     let mut data = Vec::new();
-    for candidate in &snapshot.candidates {
-        if candidate.tenant_id.is_some()
-            && candidate.tenant_id.as_deref() != Some(auth.tenant_id.as_str())
-        {
-            continue;
+    for candidate in visible {
+        // The qualified id is always advertised. It is the only id that stays
+        // stable when a second provider later registers the same model id.
+        // Bare ids remain as aliases while the model has one visible owner, so
+        // existing OpenAI-style clients keep working.
+        let owner_count = owners
+            .get(candidate.model_id.as_str())
+            .map(|providers| providers.len())
+            .unwrap_or(0);
+        for id in advertised_model_ids(&candidate.model_id, &candidate.provider_id, owner_count) {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            if model_rejection_reason(
+                &policy,
+                &candidate.model_id,
+                Some(&candidate.provider_id),
+                Some(&id),
+            )
+            .is_some()
+            {
+                continue;
+            }
+            data.push(json!({
+                "id": id,
+                "object": "model",
+                "created": 0,
+                "owned_by": candidate.provider_id,
+            }));
         }
-        if candidate.health_status == Some(HealthStatus::Disabled) {
-            continue;
-        }
-        let id = if snapshot
-            .candidates
-            .iter()
-            .filter(|other| other.model_id == candidate.model_id)
-            .map(|other| &other.provider_id)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            > 1
-        {
-            format!("{}/{}", candidate.provider_id, candidate.model_id)
-        } else {
-            candidate.model_id.clone()
-        };
-        if !seen.insert(id.clone()) {
-            continue;
-        }
-        if model_rejection_reason(
-            &policy,
-            &candidate.model_id,
-            Some(&candidate.provider_id),
-            Some(&id),
-        )
-        .is_some()
-        {
-            continue;
-        }
-        data.push(json!({
-            "id": id,
-            "object": "model",
-            "created": 0,
-            "owned_by": candidate.provider_id,
-        }));
     }
     json_response(&json!({ "object": "list", "data": data }))
 }
@@ -2580,4 +2596,29 @@ pub async fn search(State(state): State<AppState>, request: Request) -> Response
         .unwrap_or_default(),
     ))
     .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+#[cfg(test)]
+mod model_list_tests {
+    use super::advertised_model_ids;
+
+    #[test]
+    fn slash_model_ids_are_only_advertised_with_their_provider() {
+        assert_eq!(
+            advertised_model_ids("River/deepseek-ai/DeepSeek-V4.1-Flash", "valen", 1),
+            vec!["valen/River/deepseek-ai/DeepSeek-V4.1-Flash"]
+        );
+    }
+
+    #[test]
+    fn simple_unique_model_ids_keep_the_bare_alias() {
+        assert_eq!(
+            advertised_model_ids("gpt-test", "openai", 1),
+            vec!["openai/gpt-test", "gpt-test"]
+        );
+        assert_eq!(
+            advertised_model_ids("gpt-test", "openai", 2),
+            vec!["openai/gpt-test"]
+        );
+    }
 }
