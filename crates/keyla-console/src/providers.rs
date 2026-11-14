@@ -2851,25 +2851,33 @@ pub async fn sync_provider_models(
         .ok()
         .flatten()
         .unwrap_or_else(|| "chat".into());
-    let account = sqlx::query(
-        "SELECT credential_ciphertext, credential_kind::text AS credential_kind
+    let accounts = sqlx::query(
+        "SELECT credential_ciphertext
          FROM provider_accounts
          WHERE provider_id = $1 AND (tenant_id IS NULL OR tenant_id = $2::uuid)
            AND status <> 'disabled'
-         ORDER BY sort_index, created_at LIMIT 1",
+         ORDER BY sort_index, created_at",
     )
     .bind(&provider_id)
     .bind(&tenant)
-    .fetch_optional(&state.pool)
+    .fetch_all(&state.pool)
     .await
-    .ok()
-    .flatten();
-    let secret = account.and_then(|row| {
-        row.try_get::<Option<Vec<u8>>, _>("credential_ciphertext")
-            .ok()
-            .flatten()
-            .and_then(|ciphertext| keyla_security::decrypt_credential_to_string(&ciphertext).ok())
-    });
+    .unwrap_or_default();
+    let mut secrets: Vec<String> = accounts
+        .iter()
+        .filter_map(|row| {
+            row.try_get::<Option<Vec<u8>>, _>("credential_ciphertext")
+                .ok()
+                .flatten()
+                .and_then(|ciphertext| {
+                    keyla_security::decrypt_credential_to_string(&ciphertext).ok()
+                })
+        })
+        .collect();
+    if secrets.is_empty() {
+        // Some custom endpoints expose /models without auth.
+        secrets.push(String::new());
+    }
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -2884,34 +2892,45 @@ pub async fn sync_provider_models(
         }
     };
     let endpoint = format!("{}/models", base_url.trim_end_matches('/'));
-    let mut request = client.get(endpoint);
-    if let Some(secret) = &secret {
-        request = if family == "messages" {
-            request
-                .header("x-api-key", secret)
-                .header("anthropic-version", "2023-06-01")
-        } else {
-            request.bearer_auth(secret)
-        };
-    }
-    let response = match request.send().await {
-        Ok(response) => response,
-        Err(error) => {
-            return error_response(
-                StatusCode::BAD_GATEWAY,
-                "discovery_failed",
-                &format!("model discovery failed: {error}"),
-            );
+    let mut last_failure = None;
+    let mut payload = None;
+    for secret in &secrets {
+        let mut request = client.get(&endpoint);
+        if !secret.is_empty() {
+            request = if family == "messages" {
+                request
+                    .header("x-api-key", secret)
+                    .header("anthropic-version", "2023-06-01")
+            } else {
+                request.bearer_auth(secret)
+            };
         }
-    };
-    if !response.status().is_success() {
+        match request.send().await {
+            Ok(response) if response.status().is_success() => {
+                payload = Some(response.json().await.unwrap_or(Value::Null));
+                break;
+            }
+            Ok(response) => {
+                let status = response.status().as_u16();
+                last_failure = Some(format!("upstream returned HTTP {status}"));
+                if !account_status_retryable(status) {
+                    break;
+                }
+            }
+            Err(error) => {
+                last_failure = Some(format!("model discovery failed: {error}"));
+            }
+        }
+    }
+    let Some(payload) = payload else {
         return error_response(
             StatusCode::BAD_GATEWAY,
             "discovery_failed",
-            &format!("upstream returned HTTP {}", response.status().as_u16()),
+            last_failure
+                .as_deref()
+                .unwrap_or("model discovery failed for every active account"),
         );
-    }
-    let payload: Value = response.json().await.unwrap_or(Value::Null);
+    };
     let entries = payload
         .as_array()
         .cloned()
@@ -3611,12 +3630,16 @@ async fn probe_target(
     }
 }
 
-fn probe_is_account_retryable(value: &Value) -> bool {
-    let status = value.get("statusCode").and_then(Value::as_u64).unwrap_or(0);
+fn account_status_retryable(status: u16) -> bool {
     matches!(
         status,
         401 | 402 | 403 | 408 | 429 | 500 | 502 | 503 | 504 | 529
-    ) || (status == 0 && value.get("error").is_some())
+    )
+}
+
+fn probe_is_account_retryable(value: &Value) -> bool {
+    let status = value.get("statusCode").and_then(Value::as_u64).unwrap_or(0);
+    account_status_retryable(status as u16) || (status == 0 && value.get("error").is_some())
 }
 
 /// Probes one model, trying the provider's other accounts when a key-level
