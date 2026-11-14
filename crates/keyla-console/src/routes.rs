@@ -21,6 +21,14 @@ use crate::auth::{
     remaining_lock_seconds, session_cookie, validate_session, verify_password,
 };
 
+/// Reads the gateway's live proxy in-flight count and distinct client IPs.
+/// The gateway owns the counters; the console only renders a snapshot.
+pub type LiveInFlightSnapshot = Arc<dyn Fn() -> (usize, usize) + Send + Sync>;
+
+fn empty_live_in_flight() -> LiveInFlightSnapshot {
+    Arc::new(|| (0, 0))
+}
+
 #[derive(Clone)]
 pub struct ConsoleState {
     pub pool: PgPool,
@@ -28,6 +36,7 @@ pub struct ConsoleState {
     pub snapshots: Arc<keyla_db::snapshot::SnapshotService>,
     pub engine: Arc<keyla_routing::RoutingEngine>,
     pub started: std::time::Instant,
+    pub live_in_flight: LiveInFlightSnapshot,
 }
 
 impl ConsoleState {
@@ -44,7 +53,13 @@ impl ConsoleState {
             started: std::time::Instant::now(),
             pool,
             policy: default_session_cookie_policy(origin.as_deref()),
+            live_in_flight: empty_live_in_flight(),
         }
+    }
+
+    pub fn with_live_in_flight(mut self, snapshot: LiveInFlightSnapshot) -> Self {
+        self.live_in_flight = snapshot;
+        self
     }
 
     pub fn with_policy(pool: PgPool, policy: SessionCookiePolicy) -> Self {
@@ -58,6 +73,7 @@ impl ConsoleState {
             started: std::time::Instant::now(),
             pool,
             policy,
+            live_in_flight: empty_live_in_flight(),
         }
     }
 }
@@ -100,9 +116,17 @@ pub fn console_router(pool: PgPool) -> Router {
 }
 
 pub fn console_router_with_policy(pool: PgPool, policy: Option<SessionCookiePolicy>) -> Router {
+    console_router_with_live(pool, policy, empty_live_in_flight())
+}
+
+pub fn console_router_with_live(
+    pool: PgPool,
+    policy: Option<SessionCookiePolicy>,
+    live_in_flight: LiveInFlightSnapshot,
+) -> Router {
     let state = match policy {
-        Some(policy) => ConsoleState::with_policy(pool, policy),
-        None => ConsoleState::new(pool),
+        Some(policy) => ConsoleState::with_policy(pool, policy).with_live_in_flight(live_in_flight),
+        None => ConsoleState::new(pool).with_live_in_flight(live_in_flight),
     };
     Router::new()
         .route("/console/api/auth/login", post(login))

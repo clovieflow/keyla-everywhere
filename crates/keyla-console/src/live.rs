@@ -36,7 +36,11 @@ pub async fn in_flight(State(state): State<ConsoleState>, headers: HeaderMap) ->
     if let Err(response) = authorize_tenant(&state.pool, &headers, "dashboard:read").await {
         return response;
     }
-    console_response(StatusCode::OK, json!({"inFlight": 0, "uniqueIps": 0}))
+    let (in_flight, unique_ips) = (state.live_in_flight)();
+    console_response(
+        StatusCode::OK,
+        json!({"inFlight": in_flight, "uniqueIps": unique_ips}),
+    )
 }
 
 /// `GET /console/api/live/in-flight/stream`.
@@ -45,13 +49,15 @@ pub async fn in_flight_stream(State(state): State<ConsoleState>, headers: Header
         return response;
     }
     let body = async_stream::stream! {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(1_000));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
+            let (in_flight, unique_ips) = (state.live_in_flight)();
             yield Ok::<Event, std::convert::Infallible>(
                 Event::default()
                     .event("count")
-                    .json_data(json!({"inFlight": 0, "uniqueIps": 0}))
+                    .json_data(json!({"inFlight": in_flight, "uniqueIps": unique_ips}))
                     .unwrap_or_default(),
             );
         }

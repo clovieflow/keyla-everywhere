@@ -4,6 +4,7 @@
 //! endpoint, and the dashboard static routes. Every response header, status,
 //! and body here is part of the frozen wire contract.
 
+use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -188,6 +189,7 @@ impl ReadinessProbe for UnavailableDependencies {
 #[derive(Debug)]
 pub struct InFlight {
     count: AtomicUsize,
+    unique_ips: Mutex<HashMap<IpAddr, usize>>,
     sender: watch::Sender<usize>,
 }
 
@@ -202,20 +204,39 @@ impl InFlight {
         let (sender, _receiver) = watch::channel(0);
         Self {
             count: AtomicUsize::new(0),
+            unique_ips: Mutex::new(HashMap::new()),
             sender,
         }
     }
 
-    fn begin(self: &Arc<Self>) -> InFlightGuard {
+    fn begin(self: &Arc<Self>, ip: Option<IpAddr>) -> InFlightGuard {
         let count = self.count.fetch_add(1, Ordering::AcqRel) + 1;
+        if let Some(ip) = ip {
+            let mut unique = self
+                .unique_ips
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *unique.entry(ip).or_insert(0) += 1;
+        }
         let _ = self.sender.send(count);
         InFlightGuard {
             inner: Arc::clone(self),
+            ip,
         }
     }
 
     pub fn count(&self) -> usize {
         self.count.load(Ordering::Acquire)
+    }
+
+    /// `(in-flight requests, distinct client IPs)` for the live console pill.
+    pub fn snapshot(&self) -> (usize, usize) {
+        let unique = self
+            .unique_ips
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .len();
+        (self.count(), unique)
     }
 
     /// Resolves once no tracked request is in flight.
@@ -231,11 +252,25 @@ impl InFlight {
 
 struct InFlightGuard {
     inner: Arc<InFlight>,
+    ip: Option<IpAddr>,
 }
 
 impl Drop for InFlightGuard {
     fn drop(&mut self) {
         let count = self.inner.count.fetch_sub(1, Ordering::AcqRel) - 1;
+        if let Some(ip) = self.ip {
+            let mut unique = self
+                .inner
+                .unique_ips
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(active) = unique.get_mut(&ip) {
+                *active -= 1;
+                if *active == 0 {
+                    unique.remove(&ip);
+                }
+            }
+        }
         let _ = self.inner.sender.send(count);
     }
 }
@@ -245,6 +280,7 @@ pub struct AppState {
     pub runtime: Option<Arc<crate::runtime::GatewayRuntime>>,
     pub drain: Arc<DrainState>,
     pub in_flight: Arc<InFlight>,
+    pub proxy_in_flight: Arc<InFlight>,
     pub assets: Arc<StaticAssets>,
     pub readiness: Arc<dyn ReadinessProbe>,
     pub drain_token: Option<Arc<str>>,
@@ -259,6 +295,7 @@ impl AppState {
             runtime: None,
             drain: Arc::new(DrainState::new()),
             in_flight: Arc::new(InFlight::new()),
+            proxy_in_flight: Arc::new(InFlight::new()),
             assets: Arc::new(assets),
             readiness,
             drain_token: None,
@@ -292,6 +329,7 @@ pub fn build_app(state: AppState) -> Router {
     let drain_enabled = state.drain_token.is_some();
     let runtime_enabled = state.runtime.is_some();
     let console_pool = state.runtime.as_ref().map(|runtime| runtime.pool.clone());
+    let live_proxy = Arc::clone(&state.proxy_in_flight);
     let mut router = Router::new()
         .route("/health", get(health))
         .route("/health/ready", get(ready))
@@ -321,8 +359,13 @@ pub fn build_app(state: AppState) -> Router {
         .with_state(state)
         .layer(DefaultBodyLimit::max(max_body_bytes));
     if let Some(pool) = console_pool {
+        let snapshot: keyla_console::LiveInFlightSnapshot = Arc::new(move || live_proxy.snapshot());
         app = app
-            .merge(keyla_console::console_router(pool.clone()))
+            .merge(keyla_console::console_router_with_live(
+                pool.clone(),
+                None,
+                snapshot,
+            ))
             .merge(keyla_console::public_share::public_share_router(pool));
     }
     app.layer(axum::middleware::from_fn(log_gateway_requests))
@@ -454,7 +497,22 @@ async fn track_in_flight(State(state): State<AppState>, request: Request, next: 
     if matches!(path, "/health" | "/health/ready" | "/metrics") {
         return next.run(request).await;
     }
-    let _guard = state.in_flight.begin();
+    let ip = request
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|address| address.0.ip())
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.split(',').next())
+                .and_then(|value| value.trim().parse::<IpAddr>().ok())
+        });
+    let _guard = state.in_flight.begin(ip);
+    let _proxy_guard = path
+        .starts_with("/v1/")
+        .then(|| state.proxy_in_flight.begin(ip));
     next.run(request).await
 }
 
@@ -713,6 +771,22 @@ mod tests {
         assert!(is_loopback("::1".parse().unwrap()));
         assert!(is_loopback("::ffff:127.0.0.1".parse().unwrap()));
         assert!(!is_loopback(IpAddr::from([192, 0, 2, 1])));
+    }
+
+    #[test]
+    fn in_flight_snapshot_counts_distinct_ips() {
+        let tracker = Arc::new(InFlight::new());
+        let first = IpAddr::from([10, 0, 0, 1]);
+        let second = IpAddr::from([10, 0, 0, 2]);
+        let _a = tracker.begin(Some(first));
+        let _b = tracker.begin(Some(first));
+        let _c = tracker.begin(Some(second));
+        assert_eq!(tracker.snapshot(), (3, 2));
+        drop(_a);
+        drop(_b);
+        assert_eq!(tracker.snapshot(), (1, 1));
+        drop(_c);
+        assert_eq!(tracker.snapshot(), (0, 0));
     }
 
     #[test]

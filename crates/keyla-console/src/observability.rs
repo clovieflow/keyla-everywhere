@@ -338,7 +338,7 @@ async fn health_value(state: &ConsoleState, tenant: &str) -> Value {
                 coalesce(sum(cached_input_tokens) FILTER (WHERE cached_input_tokens IS NOT NULL), 0)::bigint AS cached_tokens,
                 coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
                 coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
-                coalesce(avg(tokens_per_sec) FILTER (WHERE tokens_per_sec IS NOT NULL), 0)::float8 AS avg_tokens_per_sec
+                coalesce(avg(coalesce(tokens_per_sec, CASE WHEN output_tokens > 0 AND latency_ms > 0 THEN output_tokens::float8 * 1000.0 / latency_ms ELSE NULL END)) FILTER (WHERE tokens_per_sec IS NOT NULL OR (output_tokens > 0 AND latency_ms > 0)), 0)::float8 AS avg_tokens_per_sec
          FROM telemetry_events
          WHERE tenant_id = $1::uuid AND created_at >= $2"
     ))
@@ -527,9 +527,14 @@ pub async fn usage_summary(
                 count(*) FILTER (WHERE status = 'cancelled')::bigint AS cancelled,
                 count(*) FILTER (WHERE status = 'truncated')::bigint AS truncated,
                 coalesce(avg(latency_ms), 0)::float8 AS avg_duration_ms,
+                coalesce(percentile_cont(0.50) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p50_duration_ms,
+                coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p95_duration_ms,
+                coalesce(percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms), 0)::float8 AS p99_duration_ms,
+                coalesce(avg(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL), 0)::float8 AS avg_ttfb_ms,
+                coalesce(avg(resolve_ms) FILTER (WHERE resolve_ms IS NOT NULL), 0)::float8 AS avg_resolve_ms,
                 coalesce(sum(estimated_cost_usd), 0)::float8 AS estimated_cost_usd,
                 count(*) FILTER (WHERE status = 'completed' AND estimated_cost_usd IS NULL)::bigint AS unpriced,
-                coalesce(avg(tokens_per_sec) FILTER (WHERE tokens_per_sec IS NOT NULL), 0)::float8 AS avg_tokens_per_sec
+                coalesce(avg(coalesce(tokens_per_sec, CASE WHEN output_tokens > 0 AND latency_ms > 0 THEN output_tokens::float8 * 1000.0 / latency_ms ELSE NULL END)) FILTER (WHERE tokens_per_sec IS NOT NULL OR (output_tokens > 0 AND latency_ms > 0)), 0)::float8 AS avg_tokens_per_sec
          FROM telemetry_events
          WHERE tenant_id = $1::uuid AND ($2::timestamptz IS NULL OR created_at >= $2)"
     ))
@@ -571,6 +576,11 @@ pub async fn usage_summary(
     let cancelled: i64 = row.get("cancelled");
     let truncated: i64 = row.get("truncated");
     let avg_duration_ms: f64 = row.get("avg_duration_ms");
+    let p50_duration_ms: f64 = row.get("p50_duration_ms");
+    let p95_duration_ms: f64 = row.get("p95_duration_ms");
+    let p99_duration_ms: f64 = row.get("p99_duration_ms");
+    let avg_ttfb_ms: f64 = row.get("avg_ttfb_ms");
+    let avg_resolve_ms: f64 = row.get("avg_resolve_ms");
     let estimated_cost_usd: f64 = row.get("estimated_cost_usd");
     let unpriced: i64 = row.get("unpriced");
     let avg_tokens_per_sec: f64 = row.get("avg_tokens_per_sec");
@@ -593,6 +603,11 @@ pub async fn usage_summary(
                 "truncated": truncated,
                 "statusCounts": status_counts,
                 "avgDurationMs": round2(avg_duration_ms),
+                "p50DurationMs": round2(p50_duration_ms),
+                "p95DurationMs": round2(p95_duration_ms),
+                "p99DurationMs": round2(p99_duration_ms),
+                "avgTtfbMs": round2(avg_ttfb_ms),
+                "avgResolveMs": round2(avg_resolve_ms),
                 "estimatedCostUsd": estimated_cost_usd,
                 "partial": unpriced > 0,
                 "cacheHitRate": cache_hit_rate,
@@ -782,7 +797,8 @@ fn request_item(row: &PgRow) -> Value {
             _ => 500,
         });
     object.insert("httpStatus".into(), json!(http_status));
-    if let Some(latency) = optional_i32("latency_ms") {
+    let latency_ms = optional_i32("latency_ms");
+    if let Some(latency) = latency_ms {
         object.insert("durationMs".into(), json!(latency));
     }
     if let Some(value) = optional_i32("input_tokens") {
@@ -805,6 +821,16 @@ fn request_item(row: &PgRow) -> Value {
     }
     if let Some(value) = optional_f64("tokens_per_sec") {
         object.insert("tokensPerSec".into(), json!(value));
+    } else if output > 0 {
+        // Older rows predate the persisted rate. The ratio is derivable from
+        // the two figures they do carry, so the table does not show a blank
+        // for traffic that was measured but not annotated.
+        if let Some(milliseconds) = latency_ms.filter(|value| *value > 0) {
+            object.insert(
+                "tokensPerSec".into(),
+                json!((output as f64 * 1_000.0 / milliseconds as f64 * 100.0).round() / 100.0),
+            );
+        }
     }
     if let Some(value) = optional_i64("first_content_delta_at_ms") {
         object.insert("firstContentDeltaAtMs".into(), json!(value));
@@ -983,7 +1009,7 @@ pub async fn usage_by(
                 coalesce(sum(e.input_tokens) FILTER (WHERE e.cached_input_tokens IS NOT NULL), 0)::bigint AS cache_reporting_input,
                 count(*) FILTER (WHERE {GATEWAY_ERROR_PREDICATE})::bigint AS errors,
                 sum(e.estimated_cost_usd)::float8 AS cost,
-                coalesce(avg(e.tokens_per_sec) FILTER (WHERE e.tokens_per_sec IS NOT NULL), 0)::float8 AS avg_tokens_per_sec
+                coalesce(avg(coalesce(e.tokens_per_sec, CASE WHEN e.output_tokens > 0 AND e.latency_ms > 0 THEN e.output_tokens::float8 * 1000.0 / e.latency_ms ELSE NULL END)) FILTER (WHERE e.tokens_per_sec IS NOT NULL OR (e.output_tokens > 0 AND e.latency_ms > 0)), 0)::float8 AS avg_tokens_per_sec
          FROM telemetry_events e
          WHERE e.tenant_id = $1::uuid AND ($2::timestamptz IS NULL OR e.created_at >= $2)
            {not_empty}

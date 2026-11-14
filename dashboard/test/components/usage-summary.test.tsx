@@ -145,4 +145,22 @@ describe("Usage summary completeness", () => {
     // A second tok/s formatter would drift from the first.
     expect(usageSource).toContain("formatSpeed(summary?.avgTokensPerSec)");
   });
+
+  test("renders latency, token, and outcome detail panels", () => {
+    for (const field of [
+      "p50DurationMs",
+      "p95DurationMs",
+      "p99DurationMs",
+      "avgTtfbMs",
+      "avgResolveMs",
+      "usage-insight-grid",
+    ]) {
+      expect(usageSource).toContain(field);
+    }
+  });
+
+  test("shows data freshness and an explicit refresh", () => {
+    expect(usageSource).toContain("usage-live");
+    expect(usageSource).toContain("invalidateQueries({ queryKey: [\"console\", \"usage\"] })");
+  });
 });

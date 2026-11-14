@@ -24,4 +24,7 @@ pub mod routing;
 pub mod settings;
 pub mod studio;
 
-pub use routes::{ConsoleState, console_router, console_router_with_policy};
+pub use routes::{
+    ConsoleState, LiveInFlightSnapshot, console_router, console_router_with_live,
+    console_router_with_policy,
+};

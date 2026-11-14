@@ -86,6 +86,20 @@ export function assertUsageSummary(value: unknown): UsageSummaryResponse {
   if (!numericFields.every((field) => isFiniteNumber(totals[field])) || typeof totals.partial !== "boolean") {
     throw invalidResponse("Invalid usage summary response");
   }
+  // Percentiles and stage averages are newer than the original summary
+  // contract. Treat them as optional so a rolling upgrade still renders the
+  // cards while the backend catches up, but reject a present malformed value.
+  for (const field of [
+    "p50DurationMs",
+    "p95DurationMs",
+    "p99DurationMs",
+    "avgTtfbMs",
+    "avgResolveMs",
+  ]) {
+    if (totals[field] !== undefined && !isFiniteNumber(totals[field])) {
+      throw invalidResponse("Invalid usage summary response");
+    }
+  }
   if (
     !Array.isArray(totals.statusCounts) ||
     !totals.statusCounts.every(

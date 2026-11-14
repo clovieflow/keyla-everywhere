@@ -1350,6 +1350,8 @@ struct TelemetryContext {
     user_agent: Option<String>,
     client_ip: Option<String>,
     started: std::time::Instant,
+    resolve_ms: i64,
+    ttfb_ms: Option<i64>,
 }
 
 fn surface_name(surface: Surface) -> &'static str {
@@ -1385,6 +1387,15 @@ async fn record_telemetry(
     usage: Option<&keyla_core::UsageRecord>,
 ) {
     let latency_ms = context.started.elapsed().as_millis().min(i32::MAX as u128) as i32;
+    let ttfb_ms = context
+        .ttfb_ms
+        .unwrap_or(latency_ms as i64)
+        .min(i32::MAX as i64) as i32;
+    let generation_ms = if stream {
+        (latency_ms as i64 - ttfb_ms as i64).max(1)
+    } else {
+        (latency_ms as i64).max(1)
+    };
     let error_category = error.map(|error| error.code.as_str());
     let error_origin = error.map(|error| error.origin.as_str());
     let (input, cached, output, reasoning, cost) = match usage {
@@ -1402,11 +1413,11 @@ async fn record_telemetry(
             request_id, tenant_id, source_surface, requested_model, provider_id, account_id,
             endpoint, api_key_id, user_agent, client_ip, latency_ms, stream, status,
             http_status, error_category, error_origin, input_tokens, cached_input_tokens,
-            output_tokens, reasoning_tokens, estimated_cost_usd
+            output_tokens, reasoning_tokens, estimated_cost_usd, ttfb_ms, resolve_ms, tokens_per_sec
          ) VALUES (
             gen_random_uuid(), $1::uuid, $2::telemetry_source_surface, $3, $4, $5::uuid,
             $6, $7::uuid, $8, $9, $10, $11, $12::telemetry_status,
-            $13, $14, $15, $16, $17, $18, $19, $20
+            $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
          )",
     )
     .bind(&context.tenant_id)
@@ -1429,6 +1440,12 @@ async fn record_telemetry(
     .bind(output)
     .bind(reasoning)
     .bind(cost)
+    .bind(ttfb_ms)
+    .bind(context.resolve_ms.min(i32::MAX as i64) as i32)
+    .bind(output.map(|tokens| {
+        let rate = tokens as f64 * 1_000.0 / generation_ms as f64;
+        (rate * 100.0).round() / 100.0
+    }))
     .execute(&context.pool)
     .await;
     if let Some(usage) = usage {
@@ -1500,6 +1517,7 @@ fn stream_response(
 ) -> Response {
     let stream = async_stream::stream! {
         let _guard = guard;
+        let mut telemetry = telemetry;
         let mut telemetry_guard = StreamTelemetryGuard {
             telemetry: Some(telemetry.clone()),
         };
@@ -1510,6 +1528,15 @@ fn stream_response(
         while let Some(item) = upstream.next().await {
             match item {
                 Ok(event) => {
+                    if telemetry.ttfb_ms.is_none() {
+                        telemetry.ttfb_ms = Some(
+                            telemetry
+                                .started
+                                .elapsed()
+                                .as_millis()
+                                .min(i64::MAX as u128) as i64,
+                        );
+                    }
                     if let Some(record) = event_usage(&event) {
                         usage = Some(record.clone());
                     }
@@ -1679,6 +1706,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             return gateway_error_response(&error);
         }
     };
+    let resolve_ms = started.elapsed().as_millis().min(i64::MAX as u128) as i64;
     let prompt_injection = runtime.prompt_injection.config(&auth.tenant_id).await;
     prompt_injection.apply(&mut canonical, &plan.resolved_model, &plan.provider_id);
 
@@ -1856,6 +1884,8 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
                         .map(str::to_owned)
                         .or_else(|| peer_ip.clone()),
                     started,
+                    resolve_ms,
+                    ttfb_ms: None,
                 };
                 return match output {
                     DispatchOutput::Events(events) => {
@@ -2019,6 +2049,8 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             .map(str::to_owned)
             .or_else(|| peer_ip.clone()),
         started,
+        resolve_ms,
+        ttfb_ms: None,
     };
     record_telemetry(
         &telemetry,

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   ArrowDown,
@@ -20,6 +21,7 @@ import {
   Minimize2,
   Paperclip,
   Radio,
+  RefreshCw,
   Route,
   Scaling,
   Server,
@@ -571,6 +573,120 @@ function ChartPanel({ period, metric }: { readonly period: Period; readonly metr
           />
         </AreaChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/**
+ * Three summary panels that answer the questions the headline tiles cannot:
+ * where the latency sits, what the token mix is, and how outcomes split. They
+ * consume the same polled summary as the tiles, so they move together.
+ */
+function UsageInsightGrid({
+  totals,
+  pending,
+}: {
+  readonly totals: any;
+  readonly pending: boolean;
+}): ReactNode {
+  const requests = totals?.requests ?? 0;
+  const errors = totals?.errors ?? 0;
+  const cancelled = totals?.cancelled ?? 0;
+  const truncated = totals?.truncated ?? 0;
+  const input = totals?.inputTokens ?? 0;
+  const cached = totals?.cachedTokens ?? 0;
+  const output = totals?.outputTokens ?? 0;
+  const uncached = Math.max(0, input - cached);
+  const tokenTotal = uncached + cached + output;
+  const p50 = totals?.p50DurationMs ?? 0;
+  const p95 = totals?.p95DurationMs ?? 0;
+  const p99 = totals?.p99DurationMs ?? 0;
+  const avg = totals?.avgDurationMs ?? 0;
+  const ttft = totals?.avgTtfbMs ?? 0;
+  const resolve = totals?.avgResolveMs ?? 0;
+  const maxLatency = Math.max(1, p99);
+  const completed = Math.max(0, requests - errors - cancelled);
+  const statusTotal = completed + errors + cancelled;
+  const share = (value: number) => (statusTotal > 0 ? (value / statusTotal) * 100 : 0);
+  const tokenShare = (value: number) => (tokenTotal > 0 ? (value / tokenTotal) * 100 : 0);
+  const bar = (value: number, max: number, color: string) => (
+    <div className="usage-insight-bar" aria-hidden="true">
+      <span style={{ width: `${Math.min(100, (value / max) * 100)}%`, background: color }} />
+    </div>
+  );
+  const row = (label: string, value: string, detail?: string) => (
+    <div className="usage-insight-row" key={label}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail ? <small>{detail}</small> : null}
+    </div>
+  );
+
+  return (
+    <div className="usage-insight-grid">
+      <Card>
+        <CardHeader title="Latency shape" subtitle="Where time goes" icon={<Timer size={15} />} />
+        <CardBody>
+          {pending ? (
+            <LoadingState label="Loading latency…" compact />
+          ) : (
+            <Stack gap="9px">
+              {row("p50", formatDuration(p50))}
+              {bar(p50, maxLatency, "var(--accent)")}
+              {row("p95", formatDuration(p95))}
+              {bar(p95, maxLatency, "var(--orange)")}
+              {row("p99", formatDuration(p99))}
+              {bar(p99, maxLatency, "var(--red)")}
+              {row("Average", formatDuration(avg))}
+              {row("TTFT", formatDuration(ttft), "time to first token")}
+              {row("Resolve", formatDuration(resolve), "gateway routing before upstream")}
+            </Stack>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Token mix" subtitle="Prompt, cache, completion" icon={<Database size={15} />} />
+        <CardBody>
+          {pending ? (
+            <LoadingState label="Loading tokens…" compact />
+          ) : tokenTotal === 0 ? (
+            <p className="usage-insight-empty">No token usage in this period.</p>
+          ) : (
+            <Stack gap="9px">
+              {row("Uncached input", formatNumber(uncached), `${tokenShare(uncached).toFixed(1)}% of tokens`)}
+              {bar(uncached, tokenTotal, "var(--accent)")}
+              {row("Cached input", formatNumber(cached), `${tokenShare(cached).toFixed(1)}% · ${formatNumber(totals?.cacheHitRate)}% hit rate`)}
+              {bar(cached, tokenTotal, "var(--purple)")}
+              {row("Output", formatNumber(output), `${tokenShare(output).toFixed(1)}% of tokens`)}
+              {bar(output, tokenTotal, "var(--green)")}
+              {row("Total tokens", formatNumber(tokenTotal), `${formatNumber(totals?.avgTokensPerSec, undefined)} tok/s average`)}
+            </Stack>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Outcome mix" subtitle="Success, errors, client aborts" icon={<CheckCircle2 size={15} />} />
+        <CardBody>
+          {pending ? (
+            <LoadingState label="Loading outcomes…" compact />
+          ) : statusTotal === 0 ? (
+            <p className="usage-insight-empty">No requests in this period.</p>
+          ) : (
+            <Stack gap="9px">
+              {row("Completed", formatNumber(completed), `${share(completed).toFixed(1)}% of requests`)}
+              {bar(completed, statusTotal, "var(--green)")}
+              {row("Errors", formatNumber(errors), errors > 0 ? `${share(errors).toFixed(1)}% of requests` : "none")}
+              {bar(errors, statusTotal, "var(--red)")}
+              {row("Cancelled", formatNumber(cancelled), "client closed the request")}
+              {bar(cancelled, statusTotal, "var(--orange)")}
+              {row("Truncated", formatNumber(truncated), "stream ended before completion")}
+              {row("Success rate", `${(share(completed)).toFixed(1)}%`)}
+            </Stack>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }
@@ -1281,6 +1397,7 @@ export function toggleInSet<T>(set: ReadonlySet<T>, key: T): Set<T> {
 }
 
 export default function Usage(): ReactNode {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const period = asPeriod(searchParams.get("period"));
   const metric = asMetric(searchParams.get("metric"));
@@ -1435,6 +1552,23 @@ export default function Usage(): ReactNode {
         eyebrow="Monitor / Usage trace"
         title={"Usage\nunder load."}
         description="Permintaan, token, biaya, dan latensi dari setiap request yang melewati gateway — satu garis waktu yang bisa diaudit."
+        actions={
+          <Inline gap="8px" align="center" style={{ flexWrap: "wrap" }}>
+            <span className="usage-live">
+              <span className={`usage-live-dot${summaryQuery.isFetching ? " is-live" : ""}`} aria-hidden="true" />
+              {summaryQuery.isFetching || !summaryQuery.dataUpdatedAt ? "Refreshing" : `Updated ${formatAgo(new Date(summaryQuery.dataUpdatedAt))}`}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<RefreshCw size={13} className={summaryQuery.isFetching ? "animate-spin" : ""} />}
+              onClick={() => void queryClient.invalidateQueries({ queryKey: ["console", "usage"] })}
+              disabled={summaryQuery.isFetching}
+            >
+              Refresh
+            </Button>
+          </Inline>
+        }
       />
       <div className="metric-grid">
         <RequestsStatCard
@@ -1529,6 +1663,8 @@ export default function Usage(): ReactNode {
           icon={<Gauge size={13} />}
         />
       </div>
+
+      <UsageInsightGrid totals={summary} pending={summaryQuery.isPending} />
 
       <div className="two-column-grid">
 
