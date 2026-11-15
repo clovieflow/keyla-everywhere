@@ -926,6 +926,13 @@ async fn build_credential(
             extra_headers.insert("chatgpt-account-id".to_owned(), account_id);
         }
     }
+    if provider_id == "opencodeft" {
+        // OpenCode's free shelf identifies the client, not a credential.
+        // Sending the CLI identity is part of the provider contract.
+        let version = keyla_config::resolve_opencode_version_override(&keyla_config::ProcessEnv)
+            .unwrap_or_else(|| "1.0".to_owned());
+        extra_headers.insert("User-Agent".into(), format!("opencode/{version}"));
+    }
     Ok(DispatchCredential {
         credential_kind,
         secret,
@@ -1790,12 +1797,20 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             model_id: candidate.model_id.clone(),
             endpoint_path: candidate.endpoint.clone(),
         };
+        let dispatch_client = match runtime.dispatch_client(candidate).await {
+            Ok(client) => client,
+            Err(error) => {
+                runtime.engine.release(&reservation).await;
+                last_error = Some(error);
+                continue;
+            }
+        };
         let dispatched = if candidate.provider_id == "kiro" {
-            keyla_providers::kiro::dispatch_kiro(&runtime.client, &canonical, &target, &credential)
+            keyla_providers::kiro::dispatch_kiro(&dispatch_client, &canonical, &target, &credential)
                 .await
         } else if matches!(candidate.provider_id.as_str(), "cb" | "cbcn" | "workbuddy") {
             keyla_providers::buddy::dispatch_buddy(
-                &runtime.client,
+                &dispatch_client,
                 &candidate.provider_id,
                 &canonical,
                 &target,
@@ -1804,7 +1819,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             .await
         } else if candidate.provider_id == "devin" {
             keyla_providers::devin::dispatch_devin(
-                &runtime.client,
+                &dispatch_client,
                 &canonical,
                 &target,
                 &credential,
@@ -1812,7 +1827,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             .await
         } else if candidate.provider_id == "antigravity" {
             keyla_providers::antigravity::dispatch_antigravity(
-                &runtime.client,
+                &dispatch_client,
                 &canonical,
                 &target,
                 &credential,
@@ -1821,10 +1836,10 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
         } else if candidate.provider_id == "mimodesktop" {
             let mut request = canonical.clone();
             request.model = keyla_providers::mimodesktop::resolve_model(&candidate.model_id);
-            dispatch_chat(&runtime.client, &request, &target, &credential).await
+            dispatch_chat(&dispatch_client, &request, &target, &credential).await
         } else if candidate.provider_id == "mimostudio" {
             keyla_providers::mimostudio::dispatch_mimostudio(
-                &runtime.client,
+                &dispatch_client,
                 &canonical,
                 &target,
                 &credential,
@@ -1832,7 +1847,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             .await
         } else if candidate.provider_id == "qoder" {
             keyla_providers::qoder::dispatch_qoder(
-                &runtime.client,
+                &dispatch_client,
                 &canonical,
                 &target,
                 &credential,
@@ -1840,7 +1855,7 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
             .await
         } else if candidate.provider_id == "gemini" {
             keyla_providers::gemini::dispatch_gemini(
-                &runtime.client,
+                &dispatch_client,
                 &canonical,
                 &target,
                 &credential,
@@ -1849,13 +1864,13 @@ async fn proxy(state: AppState, request: Request, surface: Surface) -> Response 
         } else {
             match candidate.wire_family {
                 WireFamily::Chat => {
-                    dispatch_chat(&runtime.client, &canonical, &target, &credential).await
+                    dispatch_chat(&dispatch_client, &canonical, &target, &credential).await
                 }
                 WireFamily::Messages => {
-                    dispatch_messages(&runtime.client, &canonical, &target, &credential).await
+                    dispatch_messages(&dispatch_client, &canonical, &target, &credential).await
                 }
                 WireFamily::Responses => {
-                    dispatch_responses(&runtime.client, &canonical, &target, &credential).await
+                    dispatch_responses(&dispatch_client, &canonical, &target, &credential).await
                 }
             }
         };

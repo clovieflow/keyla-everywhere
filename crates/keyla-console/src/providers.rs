@@ -8,6 +8,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use chrono::{DateTime, SecondsFormat, Utc};
+use keyla_config::Env;
 use keyla_providers::{
     is_bundled_provider, provider_display_name, provider_has_adapter_user_agent, provider_metadata,
     provider_service_kinds, provider_supports_web_search,
@@ -3510,6 +3511,34 @@ async fn resolve_probe_target(
     })
 }
 
+fn probe_client(provider_id: &str) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
+    if provider_id == "opencodeft" {
+        if let Some(raw) = keyla_config::ProcessEnv.get("KEYLA_OPENCODE_PROXY_URLS") {
+            let Some(first) = raw
+                .split(',')
+                .map(str::trim)
+                .find(|value| !value.is_empty())
+            else {
+                return builder
+                    .build()
+                    .map_err(|error| format!("http client: {error}"));
+            };
+            let endpoint = if first.contains("://") {
+                first.to_owned()
+            } else {
+                format!("socks5://{first}")
+            };
+            let proxy = reqwest::Proxy::all(&endpoint)
+                .map_err(|error| format!("opencode proxy rejected: {error}"))?;
+            builder = builder.proxy(proxy);
+        }
+    }
+    builder
+        .build()
+        .map_err(|error| format!("http client: {error}"))
+}
+
 async fn probe_target(
     _state: &ConsoleState,
     provider_id: &str,
@@ -3517,13 +3546,10 @@ async fn probe_target(
     body: &Value,
     target: &ProbeTarget,
 ) -> Value {
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-    {
+    let client = match probe_client(provider_id) {
         Ok(client) => client,
         Err(error) => {
-            return json!({"ok": false, "latencyMs": 0, "error": format!("http client: {error}")});
+            return json!({"ok": false, "latencyMs": 0, "error": error});
         }
     };
     let prompt = body

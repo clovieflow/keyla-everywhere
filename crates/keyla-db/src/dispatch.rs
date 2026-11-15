@@ -49,3 +49,37 @@ pub async fn load_dispatch_account(
         auth_state: row.get("auth_state"),
     }))
 }
+
+#[derive(Debug, Clone)]
+pub struct DispatchNetworkPool {
+    pub id: String,
+    pub kind: String,
+    pub endpoint: String,
+}
+
+/// Loads an active egress pool by id, scoped to the tenant that owns it.
+pub async fn load_network_pool(
+    pool: &PgPool,
+    pool_id: &str,
+    tenant_id: &str,
+) -> DbResult<Option<DispatchNetworkPool>> {
+    let row: Option<PgRow> = sqlx::query(
+        "SELECT id::text AS id, kind::text AS kind,
+                endpoint_config->>'endpoint' AS endpoint
+         FROM network_pools
+         WHERE id = $1::uuid AND tenant_id = $2::uuid AND status = 'active'",
+    )
+    .bind(pool_id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.and_then(|row| {
+        let endpoint: Option<String> = row.get("endpoint");
+        let endpoint = endpoint.filter(|value| !value.trim().is_empty())?;
+        Some(DispatchNetworkPool {
+            id: row.get("id"),
+            kind: row.get("kind"),
+            endpoint,
+        })
+    }))
+}

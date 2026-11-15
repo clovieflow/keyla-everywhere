@@ -1728,7 +1728,7 @@ export default function Proxy(): ReactNode {
       >
         <CardHeader
           title="Proxy Pool"
-          subtitle="Outbound proxy servers — HTTP, HTTPS, and SOCKS5"
+          subtitle="Outbound proxy servers — HTTP, HTTPS, and SOCKS5 · rotated for OpenCode Free"
           icon={<ShieldCheck size={16} />}
           action={
             <Inline gap="8px">
