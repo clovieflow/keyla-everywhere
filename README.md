@@ -334,6 +334,23 @@ Antigravity OAuth needs operator-supplied `KEYLA_ANTIGRAVITY_CLIENT_ID` and
 Provider-specific upstream behavior that has not been exercised against a live
 account is deliberately not claimed as verified.
 
+### OpenCode Free egress rotation
+
+OpenCode Free enforces a per-IP free-usage ceiling. Keyla applies active
+network pools only to IP-scoped providers (currently `opencodeft`), rotating
+one pool per request. Operators can also point it at a WARP SOCKS5 proxy
+without creating a pool:
+
+```bash
+KEYLA_OPENCODE_PROXY_URLS=socks5://127.0.0.1:40000
+```
+
+A single WARP endpoint still has one egress IP. To rotate that identity, run
+`scripts/warp-rotate.sh` on the Keyla host after registering WARP; it starts
+WARP proxy mode on port 40000 and rotates the tunnel key pair every
+`WARP_ROTATE_SECONDS` (default 120). Other providers continue to use the
+direct client. The console's model Test button uses the same endpoints.
+
 ## Backup and restore
 
 The database is the authoritative store. Use PostgreSQL tooling:

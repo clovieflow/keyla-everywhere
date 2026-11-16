@@ -52,6 +52,12 @@ fn normalize_warp_endpoint(endpoint: &str) -> String {
     }
 }
 
+fn next_rotation_index(cursor: &mut usize, len: usize) -> usize {
+    let index = *cursor % len;
+    *cursor = cursor.wrapping_add(1);
+    index
+}
+
 impl GatewayRuntime {
     pub fn new(
         pool: PgPool,
@@ -117,10 +123,10 @@ impl GatewayRuntime {
                     .pool_cursors
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                let cursor = cursors.entry(cursor_key).or_insert(0);
-                let index = *cursor % candidate.network_pool_ids.len();
-                *cursor = cursor.wrapping_add(1);
-                index
+                next_rotation_index(
+                    cursors.entry(cursor_key).or_insert(0),
+                    candidate.network_pool_ids.len(),
+                )
             };
             for offset in 0..candidate.network_pool_ids.len() {
                 let pool_id = &candidate.network_pool_ids
@@ -169,10 +175,7 @@ impl GatewayRuntime {
                 .pool_cursors
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let cursor = cursors.entry(cursor_key).or_insert(0);
-            let index = *cursor % warp_urls.len();
-            *cursor = cursor.wrapping_add(1);
-            index
+            next_rotation_index(cursors.entry(cursor_key).or_insert(0), warp_urls.len())
         };
         for offset in 0..warp_urls.len() {
             let endpoint = normalize_warp_endpoint(&warp_urls[(start + offset) % warp_urls.len()]);
@@ -348,6 +351,15 @@ mod proxy_tests {
             normalize_proxy_endpoint("https", "https://proxy.example:443").unwrap(),
             "https://proxy.example:443"
         );
+    }
+
+    #[test]
+    fn rotation_visits_every_endpoint_and_wraps() {
+        let mut cursor = 0;
+        let indexes: Vec<usize> = (0..5)
+            .map(|_| next_rotation_index(&mut cursor, 3))
+            .collect();
+        assert_eq!(indexes, vec![0, 1, 2, 0, 1]);
     }
 
     #[test]
