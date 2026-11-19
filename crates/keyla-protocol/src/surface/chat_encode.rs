@@ -1,6 +1,8 @@
 //! Chat Completions response encoders. Port of
 //! `src/transport/surface/chat/encode.ts`.
 
+use std::collections::{HashMap, HashSet};
+
 use keyla_core::{CanonicalEvent, CanonicalStopReason, ContentPart, TerminalState};
 use serde_json::{Map, Value, json};
 
@@ -362,6 +364,8 @@ pub struct ChatStreamEncoder {
     configured_obfuscation: Option<String>,
     obfuscation_pinned: bool,
     tracker: ToolCallTracker,
+    emitted_arguments: HashMap<String, usize>,
+    emitted_tool_names: HashSet<String>,
     final_usage: Option<Value>,
     terminal_state: Option<TerminalState>,
     emitted_any: bool,
@@ -392,6 +396,8 @@ impl ChatStreamEncoder {
             configured_obfuscation,
             obfuscation_pinned,
             tracker: ToolCallTracker::new(),
+            emitted_arguments: HashMap::new(),
+            emitted_tool_names: HashSet::new(),
             final_usage: None,
             terminal_state: None,
             emitted_any: false,
@@ -517,9 +523,21 @@ impl ChatStreamEncoder {
                     delta.insert("type".into(), json!("function"));
                     let mut function = Map::new();
                     if let Some(name) = &state.name {
-                        function.insert("name".into(), json!(name));
+                        if self.emitted_tool_names.insert(state.id.clone()) {
+                            function.insert("name".into(), json!(name));
+                        }
                     }
-                    function.insert("arguments".into(), json!(state.arguments));
+                    // OpenAI streaming clients concatenate argument deltas
+                    // themselves. The tracker stores the accumulated string
+                    // for non-streaming assembly, so send only the suffix that
+                    // has not already been emitted; resending the whole
+                    // accumulated object produces duplicated JSON and breaks
+                    // tool calls that arrive in multiple frames.
+                    let sent = self.emitted_arguments.get(&state.id).copied().unwrap_or(0);
+                    let pending = state.arguments.get(sent..).unwrap_or("");
+                    function.insert("arguments".into(), json!(pending));
+                    self.emitted_arguments
+                        .insert(state.id.clone(), state.arguments.len());
                     delta.insert("function".into(), Value::Object(function));
                     self.emitted_any = true;
                     return vec![
@@ -741,6 +759,48 @@ mod tests {
             "{}"
         );
         assert_eq!(value["choices"][0]["finish_reason"], "tool_calls");
+    }
+
+    #[test]
+    fn stream_encoder_sends_argument_deltas_not_the_accumulated_object() {
+        let mut encoder = ChatStreamEncoder::new(ChatEncodeOptions::default());
+        let first = encoder.push(&CanonicalEvent::ToolCallDelta {
+            sequence_number: 1,
+            call_id: "call_1".into(),
+            index: Some(0),
+            name: Some("read".into()),
+            arguments_delta: Some("{\"a\"".into()),
+            event_id: None,
+            response_id: None,
+            item_id: None,
+            output_index: None,
+            timestamp: None,
+        });
+        assert_eq!(
+            first[0]["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"],
+            "{\"a\""
+        );
+        let second = encoder.push(&CanonicalEvent::ToolCallDelta {
+            sequence_number: 2,
+            call_id: "call_1".into(),
+            index: None,
+            name: None,
+            arguments_delta: Some(":1}".into()),
+            event_id: None,
+            response_id: None,
+            item_id: None,
+            output_index: None,
+            timestamp: None,
+        });
+        assert_eq!(
+            second[0]["choices"][0]["delta"]["tool_calls"][0]["function"]["arguments"],
+            ":1}"
+        );
+        assert!(
+            second[0]["choices"][0]["delta"]["tool_calls"][0]["function"]
+                .get("name")
+                .is_none()
+        );
     }
 
     #[test]
